@@ -56,7 +56,10 @@ def main() -> int:
     assert (PLUGIN_ROOT / "claude-skills/career-command-center/SKILL.md").exists()
     assert len(list((PLUGIN_ROOT / "claude-commands").glob("*.md"))) == 4
     assert claude_marketplace["name"] == "career-command-center"
-    assert claude_marketplace["plugins"][0]["source"]["repo"] == "mrizaarseven98/career-command-center"
+    assert claude_marketplace["plugins"][0]["source"] == {
+        "source": "url",
+        "url": "https://github.com/mrizaarseven98/career-command-center.git",
+    }
     assert claude_marketplace["plugins"][0]["strict"] is False
     assert claude_marketplace["plugins"][0]["skills"] == [
         "./claude-skills/career-command-center"

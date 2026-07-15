@@ -10,8 +10,8 @@
     {
       "name": "career-command-center",
       "source": {
-        "source": "github",
-        "repo": "mrizaarseven98/career-command-center"
+        "source": "url",
+        "url": "https://github.com/mrizaarseven98/career-command-center.git"
       },
       "strict": false,
       "skills": [
