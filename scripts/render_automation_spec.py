@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Render the Codex automation specification from the app's current config."""
+"""Render the assistant automation specification from the app's current config."""
 
 from __future__ import annotations
 

@@ -74,6 +74,12 @@ def main() -> int:
         default=Path.home() / "Applications" / "Career Command Center.app",
     )
     parser.add_argument("--workspace", type=Path, default=None)
+    parser.add_argument(
+        "--assistant-provider",
+        choices=("codex", "claude"),
+        default="codex",
+        help="Assistant name used by the app's handoff controls.",
+    )
     parser.add_argument("--force-rebuild", action="store_true")
     parser.add_argument("--no-launch", action="store_true")
     args = parser.parse_args()
@@ -92,6 +98,20 @@ def main() -> int:
     shutil.copytree(source, args.destination, symlinks=True)
     repaired_permissions = ensure_launchable(args.destination)
 
+    subprocess.run(
+        [
+            "/usr/bin/defaults",
+            "write",
+            "com.careercommandcenter.macos",
+            "CareerCommandCenter.assistantProvider",
+            args.assistant_provider,
+        ],
+        check=True,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
     command = ["open", str(args.destination)]
     if args.workspace:
         command.extend(["--args", "--workspace", str(args.workspace)])
@@ -103,6 +123,7 @@ def main() -> int:
             {
                 "installed_app": str(args.destination),
                 "workspace_override": str(args.workspace) if args.workspace else None,
+                "assistant_provider": args.assistant_provider,
                 "launched": not args.no_launch,
                 "executable_permission_repaired": repaired_permissions,
             },

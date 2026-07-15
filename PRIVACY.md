@@ -2,7 +2,7 @@
 
 Effective date: 15 July 2026
 
-Career Command Center is a local macOS application and Codex workflow published by Mehmet Riza Arseven. It does not use a developer-operated server, user account, analytics service, advertising service, or telemetry system.
+Career Command Center is a local macOS application with Codex and Claude Code plugin workflows, published by Mehmet Riza Arseven. It does not use a developer-operated server, user account, analytics service, advertising service, or telemetry system.
 
 ## Data the Plugin Uses
 
@@ -10,7 +10,7 @@ The workflow may use information that you choose to place in your Career Command
 
 - CVs, transcripts, certificates, recommendations, project reports, and portfolio material.
 - Answers entered during onboarding, such as contact details, work preferences, target locations, and role categories.
-- Source citations, personalized evidence questions, user responses, and Codex review decisions created during the document audit.
+- Source citations, personalized evidence questions, user responses, and assistant review decisions created during the document audit.
 - Job and PhD posting details, application status, notes, generated CVs, and cover letters.
 - Search and automation settings.
 
@@ -18,13 +18,13 @@ The workflow may use information that you choose to place in your Career Command
 
 The companion app stores its configuration and application state in the workspace you select. It does not upload files on its own. The publisher does not receive a copy of your workspace.
 
-When you ask Codex to audit documents, search for opportunities, or generate application materials, Codex processes the files and instructions needed for that request under the privacy and data controls of the OpenAI product you are using. This policy does not replace OpenAI's own privacy terms.
+When you ask Codex or Claude to audit documents, search for opportunities, or generate application materials, that assistant processes the files and instructions needed for the request under the privacy and data controls of the product you are using. This policy does not replace OpenAI's or Anthropic's own privacy terms.
 
 ## Network Access and Third Parties
 
-Career Command Center has no publisher-operated network service. At your request, Codex may browse public employer pages, job boards, university pages, and other sources. Opening a posting or application link sends you to that third party, whose privacy policy applies.
+Career Command Center has no publisher-operated network service. At your request, the configured assistant may browse public employer pages, job boards, university pages, and other sources. Opening a posting or application link sends you to that third party, whose privacy policy applies.
 
-The workflow does not submit applications, send email, contact recruiters, or upload documents to third-party services without a specific user request and any approval required by Codex.
+The workflow does not submit applications, send email, contact recruiters, or upload documents to third-party services without a specific user request and any approval required by the configured assistant.
 
 ## Retention and Deletion
 

@@ -72,7 +72,7 @@ struct QuestionsView: View {
                 Button {
                     store.copyCodexRequest(store.questionGenerationRequest())
                 } label: {
-                    Label("Audit in Codex", systemImage: "doc.text.magnifyingglass")
+                    Label("Audit in \(store.assistantDisplayName)", systemImage: "doc.text.magnifyingglass")
                 }
                 .buttonStyle(SecondaryButtonStyle())
             }
@@ -80,7 +80,7 @@ struct QuestionsView: View {
                 Button {
                     store.copyCodexRequest(store.questionReviewRequest())
                 } label: {
-                    Label("Review in Codex", systemImage: "arrow.up.right.square")
+                    Label("Review in \(store.assistantDisplayName)", systemImage: "arrow.up.right.square")
                 }
                 .buttonStyle(PrimaryButtonStyle())
             }
@@ -100,7 +100,7 @@ struct QuestionsView: View {
                 ? "A source-specific evidence audit is needed"
                 : store.questionBank.sourceChangeNote
         }
-        return "\(store.questionsNeedingAnswer.count) need answers, \(store.questionsAwaitingReview.count) ready for Codex"
+        return "\(store.questionsNeedingAnswer.count) need answers, \(store.questionsAwaitingReview.count) ready for \(store.assistantDisplayName)"
     }
 
     private var questionList: some View {
@@ -158,8 +158,8 @@ struct QuestionsView: View {
             EmptyStateView(
                 icon: "doc.text.magnifyingglass",
                 title: "No audit questions yet",
-                message: "Ask Codex to read the imported evidence and create cited follow-up questions.",
-                actionTitle: "Audit in Codex",
+                message: "Ask \(store.assistantDisplayName) to read the imported evidence and create cited follow-up questions.",
+                actionTitle: "Audit in \(store.assistantDisplayName)",
                 action: { store.copyCodexRequest(store.questionGenerationRequest()) }
             )
         case .needsAnswer where !store.questionsAwaitingReview.isEmpty:
@@ -167,7 +167,7 @@ struct QuestionsView: View {
                 icon: "checkmark.circle",
                 title: "Every question has a response",
                 message: "Your saved answers are ready to be checked against the source files.",
-                actionTitle: "Review in Codex",
+                actionTitle: "Review in \(store.assistantDisplayName)",
                 action: { store.copyCodexRequest(store.questionReviewRequest()) }
             )
         case .needsAnswer:
@@ -180,7 +180,7 @@ struct QuestionsView: View {
             EmptyStateView(
                 icon: "tray",
                 title: "No answers waiting",
-                message: "Answered or unverifiable questions will appear here for Codex review."
+                message: "Answered or unverifiable questions will appear here for \(store.assistantDisplayName) review."
             )
         case .history:
             EmptyStateView(
@@ -284,7 +284,7 @@ struct QuestionsView: View {
                 if !question.reviewNote.isEmpty {
                     InlineBanner(
                         kind: question.status == .resolved ? .success : .info,
-                        title: question.status == .resolved ? "Codex review" : "Question history",
+                        title: question.status == .resolved ? "\(store.assistantDisplayName) review" : "Question history",
                         message: question.reviewNote
                     )
                 }
@@ -330,7 +330,7 @@ struct QuestionsView: View {
                         Button {
                             store.copyCodexRequest(store.questionReviewRequest())
                         } label: {
-                            Label("Review in Codex", systemImage: "arrow.up.right.square")
+                            Label("Review in \(store.assistantDisplayName)", systemImage: "arrow.up.right.square")
                         }
                         .buttonStyle(SecondaryButtonStyle())
                     }
@@ -342,8 +342,8 @@ struct QuestionsView: View {
     private func responseSubtitle(_ status: EvidenceQuestionStatus) -> String {
         switch status {
         case .open: return "Answer only what you know. Unverifiable is a valid response."
-        case .answered: return "Saved and waiting for Codex to update the evidence bank."
-        case .unableToVerify: return "Codex will record that this detail cannot support a CV claim."
+        case .answered: return "Saved and waiting for \(store.assistantDisplayName) to update the evidence bank."
+        case .unableToVerify: return "\(store.assistantDisplayName) will record that this detail cannot support a CV claim."
         case .notApplicable: return "Marked as outside your background or the project scope."
         case .resolved: return "Reviewed against the source files and evidence bank."
         case .superseded: return "A later audit no longer requires this question."

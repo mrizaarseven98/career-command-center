@@ -151,7 +151,7 @@ def main() -> int:
     awaiting_review = question_counts["answered"] + question_counts["unable_to_verify"]
     if awaiting_review:
         warnings.append(
-            f"Personalized evidence answers await Codex review: {awaiting_review}"
+            f"Personalized evidence answers await assistant review: {awaiting_review}"
         )
     if document_count + project_count > 0 and question_audit_status != "current":
         warnings.append("Personalized evidence audit needs refresh for imported source material")

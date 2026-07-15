@@ -102,7 +102,7 @@ struct OnboardingView: View {
                 Text("Local by default")
                     .font(.system(size: 11, weight: .semibold))
                     .foregroundStyle(AppTheme.ink)
-                Text("Your documents and answers stay in the workspace you choose. Codex reads them only when you ask it to work on your search.")
+                Text("Your documents and answers stay in the workspace you choose. \(store.assistantDisplayName) reads them only when you ask it to work on your search.")
                     .font(.system(size: 11))
                     .foregroundStyle(AppTheme.muted)
                     .fixedSize(horizontal: false, vertical: true)
@@ -130,7 +130,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 24) {
             SectionTitle(
                 title: "Start with a blank search profile",
-                subtitle: "Add your documents and broad answers first. Codex will audit them and return with source-specific follow-up questions."
+                subtitle: "Add your documents and broad answers first. \(store.assistantDisplayName) will audit them and return with source-specific follow-up questions."
             )
 
             InlineBanner(
@@ -164,7 +164,7 @@ struct OnboardingView: View {
                     onboardingPromise(icon: "folder.badge.plus", title: "The complete evidence base", text: "Every CV, transcript, certificate, recommendation, report, portfolio item, and project file you can provide.")
                     onboardingPromise(icon: "doc.text.magnifyingglass", title: "Your actual background", text: "Education, experience, strongest work, ownership, verified results, and career direction.")
                     onboardingPromise(icon: "scope", title: "What to search", text: "Only after that: geography, opportunity format, working model, seniority, and any direction you want to impose.")
-                    onboardingPromise(icon: "clock.arrow.2.circlepath", title: "How Codex should work", text: "Search depth, minimum lead count, package generation, and schedule.")
+                    onboardingPromise(icon: "clock.arrow.2.circlepath", title: "How \(store.assistantDisplayName) should work", text: "Search depth, minimum lead count, package generation, and schedule.")
                 }
             }
         }
@@ -215,7 +215,7 @@ struct OnboardingView: View {
 
     private var targetsStep: some View {
         VStack(alignment: .leading, spacing: 20) {
-            SectionTitle(title: "Now define the search boundary", subtitle: "Nothing below is preselected. Choose the practical limits; let Codex infer suitable role families from your evidence unless you prefer to direct it.")
+            SectionTitle(title: "Now define the search boundary", subtitle: "Nothing below is preselected. Choose the practical limits; let \(store.assistantDisplayName) infer suitable role families from your evidence unless you prefer to direct it.")
 
             PanelSection(title: "Countries or regions", subtitle: "Required. Use the places where you genuinely want the automation to search.") {
                 TextField("Enter one or more locations, separated by commas", text: commaSeparated($store.config.search.countries))
@@ -284,7 +284,7 @@ struct OnboardingView: View {
 
     private var documentsStep: some View {
         VStack(alignment: .leading, spacing: 20) {
-            SectionTitle(title: "Give Codex the complete source material", subtitle: "This is the most useful setup step. Sparse evidence produces generic CVs.")
+            SectionTitle(title: "Give \(store.assistantDisplayName) the complete source material", subtitle: "This is the most useful setup step. Sparse evidence produces generic CVs.")
 
             InlineBanner(
                 kind: .warning,
@@ -345,7 +345,7 @@ struct OnboardingView: View {
             InlineBanner(
                 kind: .info,
                 title: "This is the first pass",
-                message: "After setup, Codex reads the imported files and places project-specific follow-ups in the Questions workspace. Those follow-ups cite the report, CV, transcript, or intake detail that triggered them."
+                message: "After setup, \(store.assistantDisplayName) reads the imported files and places project-specific follow-ups in the Questions workspace. Those follow-ups cite the report, CV, transcript, or intake detail that triggered them."
             )
 
             evidenceEditor(
@@ -398,7 +398,7 @@ struct OnboardingView: View {
 
             PanelSection(title: "Strategy v2.0", subtitle: "Applied to every future job-specific CV.") {
                 VStack(spacing: 12) {
-                    onboardingPromise(icon: "square.stack.3d.up.fill", title: "Role-family masters", text: "Codex builds stable masters from verified evidence, then starts every application from the closest one.")
+                    onboardingPromise(icon: "square.stack.3d.up.fill", title: "Role-family masters", text: "\(store.assistantDisplayName) builds stable masters from verified evidence, then starts every application from the closest one.")
                     onboardingPromise(icon: "text.alignleft", title: "Natural targeting", text: "Fit comes from evidence selection, order, and truthful terminology, without visible recruiter commentary.")
                     onboardingPromise(icon: "checkmark.shield.fill", title: "Claim control", text: "Measured, estimated, proposed, shared, and individually owned work stay clearly separated.")
                     onboardingPromise(icon: "doc.viewfinder", title: "Render and inspect", text: "PDF and editable-source output must pass content, ATS, duplicate, and visual checks.")
@@ -430,7 +430,7 @@ struct OnboardingView: View {
 
     private var automationStep: some View {
         VStack(alignment: .leading, spacing: 20) {
-            SectionTitle(title: "Choose how Codex should run", subtitle: "Manual search is the default. A recurring schedule is registered only when you explicitly choose daily or weekly.")
+            SectionTitle(title: "Choose how \(store.assistantDisplayName) should run", subtitle: "Manual search is the default. A recurring schedule is registered only when you explicitly choose daily or weekly.")
 
             PanelSection(title: "Schedule") {
                 VStack(alignment: .leading, spacing: 16) {
@@ -462,7 +462,7 @@ struct OnboardingView: View {
                 }
             }
 
-            PanelSection(title: "Search depth", subtitle: "Long searches broaden source coverage. Codex still verifies each promoted lead before it reaches the queue.") {
+            PanelSection(title: "Search depth", subtitle: "Long searches broaden source coverage. \(store.assistantDisplayName) still verifies each promoted lead before it reaches the queue.") {
                 VStack(alignment: .leading, spacing: 8) {
                     Slider(value: Binding(
                         get: { Double(store.config.automation.searchDepthMinutes) },
@@ -481,10 +481,10 @@ struct OnboardingView: View {
 
             InlineBanner(
                 kind: .info,
-                title: "Complete the evidence audit in Codex",
+                title: "Complete the evidence audit in \(store.assistantDisplayName)",
                 message: store.config.automation.frequency == "manual"
-                    ? "After this window closes, return to Codex and say: Finish Career Command Center setup. Codex will audit the files and place any source-specific follow-ups in Questions. No recurring search will be registered."
-                    : "After this window closes, return to Codex and say: Finish Career Command Center setup. Codex will audit the files and place any source-specific follow-ups in Questions before it validates and registers the schedule."
+                    ? "After this window closes, return to \(store.assistantDisplayName) and say: Finish Career Command Center setup. \(store.assistantDisplayName) will audit the files and place any source-specific follow-ups in Questions. No recurring search will be registered."
+                    : "After this window closes, return to \(store.assistantDisplayName) and say: Finish Career Command Center setup. \(store.assistantDisplayName) will audit the files and place any source-specific follow-ups in Questions before it validates and registers the schedule."
             )
         }
     }

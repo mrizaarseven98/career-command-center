@@ -1,0 +1,38 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
+  "name": "career-command-center",
+  "version": "1.0.0",
+  "description": "Career Command Center plugins for evidence-led job and PhD applications.",
+  "owner": {
+    "name": "Mehmet Riza Arseven"
+  },
+  "plugins": [
+    {
+      "name": "career-command-center",
+      "source": {
+        "source": "github",
+        "repo": "mrizaarseven98/career-command-center"
+      },
+      "strict": false,
+      "skills": [
+        "./claude-skills/career-command-center"
+      ],
+      "commands": "./claude-commands/",
+      "description": "Audit career evidence, research targeted roles, tailor CVs, and track applications in a native macOS workspace.",
+      "version": "1.4.0",
+      "author": {
+        "name": "Mehmet Riza Arseven"
+      },
+      "homepage": "https://github.com/mrizaarseven98/career-command-center",
+      "repository": "https://github.com/mrizaarseven98/career-command-center",
+      "license": "MIT",
+      "category": "productivity",
+      "tags": [
+        "career",
+        "jobs",
+        "phd",
+        "cv"
+      ]
+    }
+  ]
+}

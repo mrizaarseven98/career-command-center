@@ -88,7 +88,7 @@ struct DocumentsView: View {
                         EmptyStateView(
                             icon: "folder.badge.plus",
                             title: "No documents in this category",
-                            message: "Import source documents before asking Codex to audit evidence or build master CVs.",
+                            message: "Import source documents before asking \(store.assistantDisplayName) to audit evidence or build master CVs.",
                             actionTitle: "Import Documents",
                             action: {
                                 store.importDocuments(category: categoryFilter ?? .other)
@@ -241,7 +241,7 @@ struct AutomationView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                SectionTitle(title: "Automation", subtitle: "Codex search schedule and package-generation policy")
+                SectionTitle(title: "Automation", subtitle: "\(store.assistantDisplayName) search schedule and package-generation policy")
                 Spacer()
                 Button {
                     store.copyCodexRequest(store.runSearchRequest())
@@ -259,13 +259,13 @@ struct AutomationView: View {
                         HStack(spacing: 12) {
                             InlineBanner(
                                 kind: .warning,
-                                title: "Codex sync required",
-                                message: "The saved schedule differs from the registered automation. Ask Codex to sync it before relying on the next run."
+                                title: "\(store.assistantDisplayName) sync required",
+                                message: "The saved schedule differs from the registered automation. Ask \(store.assistantDisplayName) to sync it before relying on the next run."
                             )
                             Button {
                                 store.copyCodexRequest(store.automationSyncRequest())
                             } label: {
-                                Label("Sync in Codex", systemImage: "arrow.triangle.2.circlepath")
+                                Label("Sync in \(store.assistantDisplayName)", systemImage: "arrow.triangle.2.circlepath")
                             }
                             .buttonStyle(PrimaryButtonStyle())
                         }
@@ -273,7 +273,7 @@ struct AutomationView: View {
                         InlineBanner(
                             kind: .success,
                             title: "Schedule synchronized",
-                            message: store.config.automation.lastSyncedAt.isEmpty ? "Codex reports that the saved schedule is active." : "Last synchronized \(store.config.automation.lastSyncedAt)."
+                            message: store.config.automation.lastSyncedAt.isEmpty ? "\(store.assistantDisplayName) reports that the saved schedule is active." : "Last synchronized \(store.config.automation.lastSyncedAt)."
                         )
                     } else {
                         InlineBanner(
@@ -352,8 +352,8 @@ struct AutomationView: View {
                         Button("Save Schedule") {
                             store.saveConfig(markAutomationDirty: true)
                             store.showToast(store.config.automation.frequency == "manual"
-                                ? "Manual mode saved; ask Codex to remove any old schedule"
-                                : "Schedule saved; Codex sync required")
+                                ? "Manual mode saved; ask \(store.assistantDisplayName) to remove any old schedule"
+                                : "Schedule saved; \(store.assistantDisplayName) sync required")
                         }
                         .buttonStyle(PrimaryButtonStyle())
                     }
@@ -570,9 +570,9 @@ struct SettingsView: View {
                 Toggle("Include a professional photo when appropriate for the target country", isOn: $store.config.cv.includePhoto)
                     .toggleStyle(.switch)
             }
-            PanelSection(title: "Approved masters", subtitle: "Created by Codex after the evidence audit. Each new CV must name its source master in tailoring notes.") {
+            PanelSection(title: "Approved masters", subtitle: "Created by \(store.assistantDisplayName) after the evidence audit. Each new CV must name its source master in tailoring notes.") {
                 if store.config.cv.selectedMasterPaths.isEmpty {
-                    Text("No masters registered yet. Ask Codex to audit the evidence bank and build role-family masters.")
+                    Text("No masters registered yet. Ask \(store.assistantDisplayName) to audit the evidence bank and build role-family masters.")
                         .font(.system(size: 12))
                         .foregroundStyle(.secondary)
                 } else {

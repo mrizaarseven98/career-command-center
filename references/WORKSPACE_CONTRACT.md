@@ -11,7 +11,7 @@ Career Command Center uses one user-selected workspace.
 - `Evidence_Bank/approved_evidence.json`: structured evidence IDs, claims, metrics, bullets, and boundaries.
 - `Evidence_Bank/intake_answers.md`: user answers collected by the app.
 - `Evidence_Bank/PERSONALIZED_QUESTION_STANDARD.md`: rules for source-specific follow-up questions.
-- `Evidence_Bank/personalized_questions.json`: cited questions, user responses, and Codex review history.
+- `Evidence_Bank/personalized_questions.json`: cited questions, user responses, and assistant review history.
 - `Automation/automation_status.json`: latest run summary for the app.
 
 ## Directories
@@ -36,16 +36,16 @@ Unknown fields inside lead records must be preserved when state is updated.
 
 ## Personalized evidence questions
 
-`personalized_questions.json` uses schema version 1 and must be updated through `scripts/question_cli.py` when Codex generates or reviews questions. The native app may update only response fields and lifecycle status when the user answers.
+`personalized_questions.json` uses schema version 1 and must be updated through `scripts/question_cli.py` when the assistant generates or reviews questions. The native app may update only response fields and lifecycle status when the user answers.
 
-The app sets `audit_status` to `needs_refresh` when new documents or project material are imported, or when broad evidence answers change after an audit. Codex sets it to `current` through a successful question-generation pass. A current audit may legitimately contain zero questions.
+The app sets `audit_status` to `needs_refresh` when new documents or project material are imported, or when broad evidence answers change after an audit. The assistant sets it to `current` through a successful question-generation pass. A current audit may legitimately contain zero questions.
 
 Every generated question must cite at least one workspace-relative source path, locator, and short context. Active questions use `open`, `answered`, or `unable_to_verify`. Historical questions use `resolved`, `not_applicable`, or `superseded`.
 
 - `open` requires a user response.
-- `answered` and `unable_to_verify` require Codex review against the source files.
+- `answered` and `unable_to_verify` require assistant review against the source files.
 - `not_applicable` records the user's decision that the question does not apply.
-- `resolved` records Codex's evidence decision and resulting evidence IDs when applicable.
+- `resolved` records the assistant's evidence decision and resulting evidence IDs when applicable.
 - `superseded` retains audit history when a later generation no longer requires an unanswered question.
 
 Do not build final role-family master CVs or activate recurring search automation while open questions or unreviewed responses remain. An `unable_to_verify` response is a valid evidence boundary and must never be treated as permission to infer the answer.

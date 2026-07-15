@@ -23,6 +23,17 @@ final class AppStore: ObservableObject {
     private let previewMode: Bool
 
     static let workspacePreferenceKey = "CareerCommandCenter.workspacePath"
+    static let assistantProviderPreferenceKey = "CareerCommandCenter.assistantProvider"
+
+    var assistantProvider: String {
+        UserDefaults.standard.string(forKey: Self.assistantProviderPreferenceKey) == "claude"
+            ? "claude"
+            : "codex"
+    }
+
+    var assistantDisplayName: String {
+        assistantProvider == "claude" ? "Claude" : "Codex"
+    }
 
     init(workspaceOverride: URL? = nil, preview: Bool = false) {
         encoder = JSONEncoder()
@@ -155,7 +166,7 @@ final class AppStore: ObservableObject {
         saveConfig(markAutomationDirty: true)
         writeIntakeSummary()
         markQuestionAuditStale("Initial intake is ready for a source-specific evidence audit.")
-        showToast("Setup saved. Return to Codex to audit the files and generate your questions.")
+        showToast("Setup saved. Return to \(assistantDisplayName) to audit the files and generate your questions.")
     }
 
     func saveEvidenceAnswers() {
@@ -186,7 +197,7 @@ final class AppStore: ObservableObject {
         questionBank.questions[index].reviewNote = ""
         saveQuestions()
         switch status {
-        case .answered: showToast("Answer saved for Codex review")
+        case .answered: showToast("Answer saved for \(assistantDisplayName) review")
         case .unableToVerify: showToast("Evidence boundary recorded")
         case .notApplicable: showToast("Question marked not applicable")
         default: break
@@ -477,10 +488,10 @@ final class AppStore: ObservableObject {
     func copyCodexRequest(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        if let url = URL(string: "codex://") {
+        if assistantProvider == "codex", let url = URL(string: "codex://") {
             NSWorkspace.shared.open(url)
         }
-        showToast("Codex request copied")
+        showToast("\(assistantDisplayName) request copied")
     }
 
     func automationSyncRequest() -> String {

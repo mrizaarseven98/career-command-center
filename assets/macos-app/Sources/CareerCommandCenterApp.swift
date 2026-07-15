@@ -29,7 +29,7 @@ struct CareerCommandCenterApp: App {
             CommandGroup(after: .newItem) {
                 Button("Refresh Workspace") { store.reload() }
                     .keyboardShortcut("r", modifiers: [.command])
-                Button("Run Search in Codex") {
+                Button("Run Search in \(store.assistantDisplayName)") {
                     store.copyCodexRequest(store.runSearchRequest())
                 }
                 .keyboardShortcut("r", modifiers: [.command, .shift])

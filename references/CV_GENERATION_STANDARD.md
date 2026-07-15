@@ -13,7 +13,7 @@ Read before drafting:
 2. `Evidence_Bank/Verified_Evidence_Ledger.md`.
 3. `Evidence_Bank/approved_evidence.json`.
 4. `Evidence_Bank/intake_answers.md`.
-5. `Evidence_Bank/personalized_questions.json`, with no material answer awaiting Codex review.
+5. `Evidence_Bank/personalized_questions.json`, with no material answer awaiting assistant review.
 6. The complete verified job-posting snapshot.
 7. A primary report, transcript, certificate, recommendation, or portfolio source for any unsettled claim.
 

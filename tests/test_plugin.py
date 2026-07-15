@@ -43,6 +43,26 @@ def write_json(path: Path, value: dict) -> None:
 
 
 def main() -> int:
+    codex_manifest = json.loads(
+        (PLUGIN_ROOT / ".codex-plugin/plugin.json").read_text(encoding="utf-8")
+    )
+    assert codex_manifest["skills"] == "./skills/"
+    assert len(codex_manifest["interface"]["defaultPrompt"]) <= 3
+    assert (PLUGIN_ROOT / "skills/career-command-center/SKILL.md").exists()
+
+    claude_marketplace = json.loads(
+        (PLUGIN_ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8")
+    )
+    assert (PLUGIN_ROOT / "claude-skills/career-command-center/SKILL.md").exists()
+    assert len(list((PLUGIN_ROOT / "claude-commands").glob("*.md"))) == 4
+    assert claude_marketplace["name"] == "career-command-center"
+    assert claude_marketplace["plugins"][0]["source"]["repo"] == "mrizaarseven98/career-command-center"
+    assert claude_marketplace["plugins"][0]["strict"] is False
+    assert claude_marketplace["plugins"][0]["skills"] == [
+        "./claude-skills/career-command-center"
+    ]
+    assert claude_marketplace["plugins"][0]["commands"] == "./claude-commands/"
+
     with tempfile.TemporaryDirectory(prefix="career-command-center-plugin-") as temporary:
         workspace = Path(temporary) / "Workspace"
         run("python3", SCRIPTS / "bootstrap_workspace.py", workspace)
@@ -518,11 +538,14 @@ def main() -> int:
                     fake_scripts / "install_app.py",
                     "--destination",
                     destination,
+                    "--assistant-provider",
+                    "claude",
                     "--no-launch",
                 ).stdout
             )
             installed_executable = destination / "Contents/MacOS/CareerCommandCenter"
             assert install_result["executable_permission_repaired"] is True
+            assert install_result["assistant_provider"] == "claude"
             assert os.access(installed_executable, os.X_OK)
             run("/usr/bin/codesign", "--verify", "--deep", "--strict", destination)
 

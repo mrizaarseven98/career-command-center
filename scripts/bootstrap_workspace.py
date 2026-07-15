@@ -111,7 +111,7 @@ def main() -> int:
         ledger_path.write_text(
             "# Verified Evidence Ledger\n\n"
             "Status: Pending evidence audit\n\n"
-            "Codex must review the document inbox, project material, and intake answers before approving facts or building master CVs.\n",
+            "The configured assistant must review the document inbox, project material, and intake answers before approving facts or building master CVs.\n",
             encoding="utf-8",
         )
 

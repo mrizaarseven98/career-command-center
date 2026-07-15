@@ -2,7 +2,7 @@
 
 Effective date: 15 July 2026
 
-These terms apply to Career Command Center, a local macOS application and Codex workflow published by Mehmet Riza Arseven.
+These terms apply to Career Command Center, a local macOS application with Codex and Claude Code plugin workflows, published by Mehmet Riza Arseven.
 
 ## Purpose
 

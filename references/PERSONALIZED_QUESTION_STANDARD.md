@@ -1,6 +1,6 @@
 # Personalized Evidence Question Standard
 
-Career Command Center uses personalized questions to close material evidence gaps after Codex has read the user's CVs, transcripts, project files, and initial intake answers. These questions are not a second generic questionnaire.
+Career Command Center uses personalized questions to close material evidence gaps after the configured assistant has read the user's CVs, transcripts, project files, and initial intake answers. These questions are not a second generic questionnaire.
 
 ## Purpose
 
@@ -70,12 +70,12 @@ Bad:
 Question statuses are:
 
 - `open`: needs a user response;
-- `answered`: response saved and awaiting Codex review;
-- `unable_to_verify`: user cannot support the requested detail and Codex must record the boundary;
+- `answered`: response saved and awaiting assistant review;
+- `unable_to_verify`: user cannot support the requested detail and the assistant must record the boundary;
 - `not_applicable`: user confirms the question does not apply;
-- `resolved`: Codex reviewed the response and updated or excluded evidence;
+- `resolved`: the assistant reviewed the response and updated or excluded evidence;
 - `superseded`: a later audit no longer requires the question.
 
-Codex must review `answered` and `unable_to_verify` responses before building final role-family masters. For each reviewed response, update the verified evidence ledger and `approved_evidence.json` as appropriate, then record a concise `review_note` and any resulting `related_evidence_ids` through `question_cli.py review`.
+The assistant must review `answered` and `unable_to_verify` responses before building final role-family masters. For each reviewed response, update the verified evidence ledger and `approved_evidence.json` as appropriate, then record a concise `review_note` and any resulting `related_evidence_ids` through `question_cli.py review`.
 
 If a response creates a new material ambiguity, resolve the original question and generate one new cited follow-up. Do not silently rewrite an answered question.

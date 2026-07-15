@@ -11,6 +11,9 @@ struct SnapshotApp {
         let useDarkAppearance = mode.contains("dark")
         let isOnboarding = mode.hasPrefix("onboarding")
         let isCompact = mode.contains("compact")
+        if mode.contains("claude") {
+            UserDefaults.standard.set("claude", forKey: AppStore.assistantProviderPreferenceKey)
+        }
         let size = isOnboarding
             ? CGSize(width: 1280, height: 800)
             : (isCompact ? CGSize(width: 1280, height: 800) : CGSize(width: 1440, height: 900))
