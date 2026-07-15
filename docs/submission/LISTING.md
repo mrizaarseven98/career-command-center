@@ -1,0 +1,51 @@
+# Career Command Center - Public Listing
+
+## Submission Type
+
+Skills only
+
+The skill includes a native macOS companion application as a local asset. It does not expose an MCP server and has no publisher-operated backend.
+
+## Publisher
+
+Mehmet Riza Arseven
+
+## Category
+
+Productivity
+
+## Short Description
+
+Find, tailor, and track career applications with an evidence-led Codex workflow.
+
+## Long Description
+
+Career Command Center gives Codex a structured workflow for job and PhD searches. A native macOS companion app guides document intake, preferences, application tracking, archiving, deletion, and automation settings. Codex audits the user's evidence, builds role-family master CVs, verifies live opportunities, creates tailored CV and cover-letter packages, and keeps one recurring search automation synchronized.
+
+The workflow starts without assumptions about profession, target roles, countries, seniority, or schedule. It asks the user to supply their own documents and preferences, separates verified evidence from unverified claims, and requires review before any application material is used. Career files and app state remain in a workspace chosen by the user.
+
+## Public URLs
+
+- Website: https://github.com/mrizaarseven98/career-command-center
+- Support: https://github.com/mrizaarseven98/career-command-center/issues
+- Privacy: https://github.com/mrizaarseven98/career-command-center/blob/main/PRIVACY.md
+- Terms: https://github.com/mrizaarseven98/career-command-center/blob/main/TERMS.md
+
+## Platform and Availability
+
+- Companion app: macOS 14 or later.
+- Codex workflow: Codex desktop or CLI with plugins and automations enabled.
+- Language: English.
+- Initial country availability: all countries supported by the Codex plugin directory where the publisher's support and legal terms are accepted.
+
+## Starter Prompts
+
+1. Set up Career Command Center in this project.
+2. Finish Career Command Center setup and build my evidence foundation.
+3. Run my targeted career search now and add only verified opportunities.
+4. Tailor an application package for this job using my approved master CV.
+5. Diagnose Career Command Center and explain anything that needs attention.
+
+## Release Notes
+
+Initial public submission. Career Command Center combines a skills-only Codex workflow with a native macOS companion app for guided evidence intake, targeted job and PhD research, role-family master CVs, tailored application packages, opportunity lifecycle management, and recurring automation synchronization. Version 1.2.0 adds public privacy, terms, support, reviewer tests, and explicit safeguards for evidence accuracy and external actions.
