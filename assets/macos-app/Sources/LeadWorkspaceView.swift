@@ -10,7 +10,7 @@ struct MainView: View {
             Divider()
             content
         }
-        .frame(minWidth: 1120, minHeight: 720)
+        .frame(minWidth: 1200, minHeight: 720)
         .background(AppTheme.canvas)
         .overlay(alignment: .topTrailing) {
             if !store.toastMessage.isEmpty {
@@ -51,6 +51,8 @@ struct MainView: View {
             DocumentsView(store: store)
         case .evidence:
             EvidenceView(store: store)
+        case .questions:
+            QuestionsView(store: store)
         case .automation:
             AutomationView(store: store)
         case .settings:
@@ -90,6 +92,7 @@ struct SidebarView: View {
                 .padding(.top, 14)
             sidebarButton(.documents)
             sidebarButton(.evidence)
+            sidebarButton(.questions, count: store.count(for: .questions))
             sidebarButton(.automation)
             sidebarButton(.settings)
 

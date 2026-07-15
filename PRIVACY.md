@@ -10,6 +10,7 @@ The workflow may use information that you choose to place in your Career Command
 
 - CVs, transcripts, certificates, recommendations, project reports, and portfolio material.
 - Answers entered during onboarding, such as contact details, work preferences, target locations, and role categories.
+- Source citations, personalized evidence questions, user responses, and Codex review decisions created during the document audit.
 - Job and PhD posting details, application status, notes, generated CVs, and cover letters.
 - Search and automation settings.
 

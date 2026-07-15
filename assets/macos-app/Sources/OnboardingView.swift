@@ -130,7 +130,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 24) {
             SectionTitle(
                 title: "Start with a blank search profile",
-                subtitle: "The app will learn from your documents and answers before it asks what opportunities to search for."
+                subtitle: "Add your documents and broad answers first. Codex will audit them and return with source-specific follow-up questions."
             )
 
             InlineBanner(
@@ -342,6 +342,12 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 20) {
             SectionTitle(title: "Explain the person behind the files", subtitle: "This comes before job preferences so the search can be based on evidence rather than guesses. Short, concrete answers are best.")
 
+            InlineBanner(
+                kind: .info,
+                title: "This is the first pass",
+                message: "After setup, Codex reads the imported files and places project-specific follow-ups in the Questions workspace. Those follow-ups cite the report, CV, transcript, or intake detail that triggered them."
+            )
+
             evidenceEditor(
                 title: "What is your education and work history?",
                 prompt: "Summarise degrees, disciplines, employers, role scope, dates, and any important transitions. Plain facts are enough.",
@@ -475,10 +481,10 @@ struct OnboardingView: View {
 
             InlineBanner(
                 kind: .info,
-                title: store.config.automation.frequency == "manual" ? "Manual search selected" : "One final action in Codex",
+                title: "Complete the evidence audit in Codex",
                 message: store.config.automation.frequency == "manual"
-                    ? "Finishing setup will not register a recurring automation. Use Run Search whenever you want a fresh search."
-                    : "After this window closes, return to Codex and say: Finish Career Command Center setup. The plugin will validate the workspace and ask to register this schedule."
+                    ? "After this window closes, return to Codex and say: Finish Career Command Center setup. Codex will audit the files and place any source-specific follow-ups in Questions. No recurring search will be registered."
+                    : "After this window closes, return to Codex and say: Finish Career Command Center setup. Codex will audit the files and place any source-specific follow-ups in Questions before it validates and registers the schedule."
             )
         }
     }

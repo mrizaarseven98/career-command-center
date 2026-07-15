@@ -20,7 +20,7 @@ Find, tailor, and track career applications with an evidence-led Codex workflow.
 
 ## Long Description
 
-Career Command Center gives Codex a structured workflow for job and PhD searches. A native macOS companion app guides document intake, preferences, application tracking, archiving, deletion, and automation settings. Codex audits the user's evidence, builds role-family master CVs, verifies live opportunities, creates tailored CV and cover-letter packages, and keeps one recurring search automation synchronized.
+Career Command Center gives Codex a structured workflow for job and PhD searches. A native macOS companion app guides document intake, cited project-specific follow-up questions, preferences, application tracking, archiving, deletion, and automation settings. Codex audits the user's evidence, builds role-family master CVs, verifies live opportunities, creates tailored CV and cover-letter packages, and keeps one recurring search automation synchronized.
 
 The workflow starts without assumptions about profession, target roles, countries, seniority, or schedule. It asks the user to supply their own documents and preferences, separates verified evidence from unverified claims, and requires review before any application material is used. Career files and app state remain in a workspace chosen by the user.
 
@@ -48,4 +48,4 @@ The workflow starts without assumptions about profession, target roles, countrie
 
 ## Release Notes
 
-Version 1.2.1 fixes native macOS app installation after plugin download or marketplace transfer. The installer now restores transfer-sensitive launch permissions, locally re-signs and verifies the copied app, and can run its source-build fallback even when the build script's executable bit was removed. The release includes a regression test for the downloaded-archive failure mode and does not alter career documents or workspace state.
+Version 1.3.0 adds a source-specific evidence-question workflow. After reading the user's CVs, transcripts, and project files, Codex writes a validated queue whose questions cite the exact source and ambiguity that triggered them. Users answer inside the native app, can explicitly record unverifiable or inapplicable details, and send responses back for evidence review. Master CVs and recurring automation remain blocked until material answers are reviewed. Version 1.3.0 retains the transfer-safe macOS installer introduced in 1.2.1.

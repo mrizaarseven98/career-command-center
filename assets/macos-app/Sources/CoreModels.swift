@@ -506,6 +506,228 @@ struct EvidenceAnswers: Codable, Equatable {
     }
 }
 
+enum EvidenceQuestionPriority: String, Codable, CaseIterable, Identifiable {
+    case critical
+    case high
+    case medium
+
+    var id: String { rawValue }
+    var label: String { rawValue.capitalized }
+}
+
+enum EvidenceQuestionCategory: String, Codable, CaseIterable, Identifiable {
+    case metric
+    case ownership
+    case outcome
+    case method
+    case timeline
+    case contradiction
+    case eligibility
+    case direction
+    case other
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .metric: return "Metric"
+        case .ownership: return "Ownership"
+        case .outcome: return "Outcome"
+        case .method: return "Method"
+        case .timeline: return "Timeline"
+        case .contradiction: return "Contradiction"
+        case .eligibility: return "Eligibility"
+        case .direction: return "Direction"
+        case .other: return "Other"
+        }
+    }
+
+    var icon: String {
+        switch self {
+        case .metric: return "chart.bar.fill"
+        case .ownership: return "person.badge.key.fill"
+        case .outcome: return "checkmark.seal.fill"
+        case .method: return "wrench.and.screwdriver.fill"
+        case .timeline: return "calendar"
+        case .contradiction: return "arrow.left.arrow.right"
+        case .eligibility: return "checkmark.shield.fill"
+        case .direction: return "scope"
+        case .other: return "questionmark.circle.fill"
+        }
+    }
+}
+
+enum EvidenceQuestionStatus: String, Codable, CaseIterable, Identifiable {
+    case open
+    case answered
+    case unableToVerify = "unable_to_verify"
+    case notApplicable = "not_applicable"
+    case resolved
+    case superseded
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .open: return "Needs answer"
+        case .answered: return "Ready for review"
+        case .unableToVerify: return "Cannot verify"
+        case .notApplicable: return "Not applicable"
+        case .resolved: return "Resolved"
+        case .superseded: return "Superseded"
+        }
+    }
+
+    var needsUserAnswer: Bool { self == .open }
+    var awaitsCodexReview: Bool { self == .answered || self == .unableToVerify }
+    var isHistory: Bool { self == .resolved || self == .notApplicable || self == .superseded }
+}
+
+struct EvidenceQuestionSource: Codable, Hashable, Identifiable {
+    var path: String
+    var label: String
+    var locator: String
+    var context: String
+
+    var id: String { "\(path)#\(locator)" }
+}
+
+struct EvidenceQuestion: Codable, Hashable, Identifiable {
+    var id: String
+    var priority: EvidenceQuestionPriority
+    var category: EvidenceQuestionCategory
+    var question: String
+    var whyItMatters: String
+    var sourceRefs: [EvidenceQuestionSource]
+    var relatedEvidenceIDs: [String]
+    var status: EvidenceQuestionStatus
+    var answer: String
+    var generatedAt: String
+    var answeredAt: String
+    var reviewedAt: String
+    var reviewNote: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case priority
+        case category
+        case question
+        case whyItMatters = "why_it_matters"
+        case sourceRefs = "source_refs"
+        case relatedEvidenceIDs = "related_evidence_ids"
+        case status
+        case answer
+        case generatedAt = "generated_at"
+        case answeredAt = "answered_at"
+        case reviewedAt = "reviewed_at"
+        case reviewNote = "review_note"
+    }
+
+    init(
+        id: String,
+        priority: EvidenceQuestionPriority,
+        category: EvidenceQuestionCategory,
+        question: String,
+        whyItMatters: String,
+        sourceRefs: [EvidenceQuestionSource],
+        relatedEvidenceIDs: [String] = [],
+        status: EvidenceQuestionStatus = .open,
+        answer: String = "",
+        generatedAt: String = "",
+        answeredAt: String = "",
+        reviewedAt: String = "",
+        reviewNote: String = ""
+    ) {
+        self.id = id
+        self.priority = priority
+        self.category = category
+        self.question = question
+        self.whyItMatters = whyItMatters
+        self.sourceRefs = sourceRefs
+        self.relatedEvidenceIDs = relatedEvidenceIDs
+        self.status = status
+        self.answer = answer
+        self.generatedAt = generatedAt
+        self.answeredAt = answeredAt
+        self.reviewedAt = reviewedAt
+        self.reviewNote = reviewNote
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decode(String.self, forKey: .id)
+        priority = try container.decode(EvidenceQuestionPriority.self, forKey: .priority)
+        category = try container.decode(EvidenceQuestionCategory.self, forKey: .category)
+        question = try container.decode(String.self, forKey: .question)
+        whyItMatters = try container.decodeIfPresent(String.self, forKey: .whyItMatters) ?? ""
+        sourceRefs = try container.decodeIfPresent([EvidenceQuestionSource].self, forKey: .sourceRefs) ?? []
+        relatedEvidenceIDs = try container.decodeIfPresent([String].self, forKey: .relatedEvidenceIDs) ?? []
+        status = try container.decodeIfPresent(EvidenceQuestionStatus.self, forKey: .status) ?? .open
+        answer = try container.decodeIfPresent(String.self, forKey: .answer) ?? ""
+        generatedAt = try container.decodeIfPresent(String.self, forKey: .generatedAt) ?? ""
+        answeredAt = try container.decodeIfPresent(String.self, forKey: .answeredAt) ?? ""
+        reviewedAt = try container.decodeIfPresent(String.self, forKey: .reviewedAt) ?? ""
+        reviewNote = try container.decodeIfPresent(String.self, forKey: .reviewNote) ?? ""
+    }
+}
+
+enum EvidenceQuestionAuditStatus: String, Codable {
+    case notStarted = "not_started"
+    case current
+    case needsRefresh = "needs_refresh"
+
+    var needsAudit: Bool { self != .current }
+}
+
+struct PersonalizedQuestionBank: Codable, Equatable {
+    var version: Int
+    var generationID: String
+    var auditStatus: EvidenceQuestionAuditStatus
+    var sourceChangeNote: String
+    var generatedAt: String
+    var updatedAt: String
+    var questions: [EvidenceQuestion]
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case generationID = "generation_id"
+        case auditStatus = "audit_status"
+        case sourceChangeNote = "source_change_note"
+        case generatedAt = "generated_at"
+        case updatedAt = "updated_at"
+        case questions
+    }
+
+    init(
+        version: Int = 1,
+        generationID: String = "",
+        auditStatus: EvidenceQuestionAuditStatus = .notStarted,
+        sourceChangeNote: String = "",
+        generatedAt: String = "",
+        updatedAt: String = ISO8601DateFormatter().string(from: Date()),
+        questions: [EvidenceQuestion] = []
+    ) {
+        self.version = version
+        self.generationID = generationID
+        self.auditStatus = auditStatus
+        self.sourceChangeNote = sourceChangeNote
+        self.generatedAt = generatedAt
+        self.updatedAt = updatedAt
+        self.questions = questions
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        version = try container.decodeIfPresent(Int.self, forKey: .version) ?? 1
+        generationID = try container.decodeIfPresent(String.self, forKey: .generationID) ?? ""
+        auditStatus = try container.decodeIfPresent(EvidenceQuestionAuditStatus.self, forKey: .auditStatus) ?? .notStarted
+        sourceChangeNote = try container.decodeIfPresent(String.self, forKey: .sourceChangeNote) ?? ""
+        generatedAt = try container.decodeIfPresent(String.self, forKey: .generatedAt) ?? ""
+        updatedAt = try container.decodeIfPresent(String.self, forKey: .updatedAt) ?? ""
+        questions = try container.decodeIfPresent([EvidenceQuestion].self, forKey: .questions) ?? []
+    }
+}
+
 struct AppConfig: Codable, Equatable {
     var version = 2
     var onboardingCompleted = false
@@ -564,6 +786,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     case deleted
     case documents
     case evidence
+    case questions
     case automation
     case settings
 
@@ -578,6 +801,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .deleted: return "Recently Deleted"
         case .documents: return "Documents"
         case .evidence: return "Evidence"
+        case .questions: return "Questions"
         case .automation: return "Automation"
         case .settings: return "Settings"
         }
@@ -592,6 +816,7 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .deleted: return "trash.fill"
         case .documents: return "folder.fill"
         case .evidence: return "doc.text.magnifyingglass"
+        case .questions: return "questionmark.bubble.fill"
         case .automation: return "clock.arrow.2.circlepath"
         case .settings: return "gearshape.fill"
         }

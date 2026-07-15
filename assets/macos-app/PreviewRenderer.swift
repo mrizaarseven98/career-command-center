@@ -22,6 +22,10 @@ struct PreviewRenderer {
             )
         } else {
             store.config.onboardingCompleted = true
+            if mode == "questions" {
+                store.selectedSection = .questions
+                store.selectedQuestionID = store.questionsNeedingAnswer.first?.id
+            }
             try render(
                 MainView(store: store)
                     .frame(width: 1440, height: 900),

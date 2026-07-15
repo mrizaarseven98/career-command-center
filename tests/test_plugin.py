@@ -27,6 +27,16 @@ def run(*args: object) -> subprocess.CompletedProcess[str]:
     )
 
 
+def run_unchecked(*args: object) -> subprocess.CompletedProcess[str]:
+    return subprocess.run(
+        [str(arg) for arg in args],
+        check=False,
+        text=True,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+
+
 def write_json(path: Path, value: dict) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(value, indent=2) + "\n", encoding="utf-8")
@@ -38,10 +48,16 @@ def main() -> int:
         run("python3", SCRIPTS / "bootstrap_workspace.py", workspace)
 
         assert (workspace / "Evidence_Bank/CV_GENERATION_STANDARD.md").exists()
+        assert (workspace / "Evidence_Bank/PERSONALIZED_QUESTION_STANDARD.md").exists()
+        assert (workspace / "Evidence_Bank/personalized_questions.json").exists()
         assert (workspace / "Evidence_Bank/Verified_Evidence_Ledger.md").exists()
         assert (workspace / "State/cv_command_center_state.json").exists()
         fresh_state = json.loads((workspace / "State/cv_command_center_state.json").read_text(encoding="utf-8"))
         assert fresh_state["version"] == 3
+        fresh_questions = json.loads(
+            (workspace / "Evidence_Bank/personalized_questions.json").read_text(encoding="utf-8")
+        )
+        assert fresh_questions["audit_status"] == "not_started"
 
         config = {
             "version": 1,
@@ -248,6 +264,235 @@ def main() -> int:
         run("python3", SCRIPTS / "state_cli.py", "--workspace", workspace, "record-run", "--run-file", status_payload)
         status = json.loads((workspace / "Automation/automation_status.json").read_text(encoding="utf-8"))
         assert status["leads_added"] == 6 and status["last_run_at"]
+
+        question_input = Path(temporary) / "questions.json"
+        project_fixture = workspace / "Projects/Test Project"
+        project_fixture.mkdir(parents=True, exist_ok=True)
+        (project_fixture / "report.pdf").write_bytes(b"test report fixture")
+        (project_fixture / "presentation.pdf").write_bytes(b"test presentation fixture")
+        write_json(
+            question_input,
+            {
+                "generation_id": "test-audit-1",
+                "questions": [
+                    {
+                        "id": "project-impact-baseline",
+                        "priority": "critical",
+                        "category": "metric",
+                        "question": "The project report gives a 40% time reduction. Was that measured, estimated, or proposed as a target?",
+                        "why_it_matters": "The answer determines whether the figure is a result, estimate, or design target.",
+                        "source_refs": [
+                            {
+                                "path": "Projects/Test Project/report.pdf",
+                                "label": "Test Project Report",
+                                "locator": "Discussion, page 12",
+                                "context": "The percentage appears without a baseline measurement or validation method.",
+                            }
+                        ],
+                        "related_evidence_ids": [],
+                    },
+                    {
+                        "id": "project-team-ownership",
+                        "priority": "high",
+                        "category": "ownership",
+                        "question": "Which modelling, implementation, and testing tasks in the team project did you personally complete?",
+                        "why_it_matters": "Individual ownership must be separated before project bullets can be approved.",
+                        "source_refs": [
+                            {
+                                "path": "Projects/Test Project/presentation.pdf",
+                                "label": "Test Project Presentation",
+                                "locator": "Methods, slides 5-9",
+                                "context": "The slides describe team outputs without assigning implementation tasks.",
+                            }
+                        ],
+                        "related_evidence_ids": [],
+                    },
+                ],
+            },
+        )
+        generated = json.loads(
+            run(
+                "python3",
+                SCRIPTS / "question_cli.py",
+                "--workspace",
+                workspace,
+                "generate",
+                "--input",
+                question_input,
+            ).stdout
+        )
+        assert generated["needs_user_answer"] == 2
+        assert generated["audit_status"] == "current"
+        blocked_doctor = run_unchecked("python3", SCRIPTS / "doctor.py", workspace, "--strict")
+        assert blocked_doctor.returncode == 1
+        blocked_diagnostic = json.loads(blocked_doctor.stdout)
+        assert blocked_diagnostic["question_counts"]["open"] == 2
+        assert blocked_diagnostic["ready_for_automation"] is False
+
+        responded = json.loads(
+            run(
+                "python3",
+                SCRIPTS / "question_cli.py",
+                "--workspace",
+                workspace,
+                "respond",
+                "--id",
+                "project-impact-baseline",
+                "--status",
+                "answered",
+                "--answer",
+                "It was an estimate based on the documented workflow steps, not a measured result.",
+            ).stdout
+        )
+        assert responded["awaiting_codex_review"] == 1
+
+        write_json(
+            question_input,
+            {
+                "generation_id": "test-audit-2",
+                "questions": [
+                    {
+                        "id": "project-impact-baseline",
+                        "priority": "critical",
+                        "category": "metric",
+                        "question": "The project report gives a 40% time reduction. Was that measured, estimated, or proposed as a target?",
+                        "why_it_matters": "The answer determines whether the figure is a result, estimate, or design target.",
+                        "source_refs": [
+                            {
+                                "path": "Projects/Test Project/report.pdf",
+                                "label": "Test Project Report",
+                                "locator": "Discussion, page 12",
+                                "context": "The percentage appears without a baseline measurement or validation method.",
+                            }
+                        ],
+                        "related_evidence_ids": [],
+                    },
+                    {
+                        "id": "project-final-decision",
+                        "priority": "high",
+                        "category": "outcome",
+                        "question": "Which design did the final comparison support, and what result drove that decision?",
+                        "why_it_matters": "The decision would turn a process description into defensible engineering evidence.",
+                        "source_refs": [
+                            {
+                                "path": "Projects/Test Project/report.pdf",
+                                "label": "Test Project Report",
+                                "locator": "Results, pages 8-11",
+                                "context": "Several designs are compared without a clear final recommendation.",
+                            }
+                        ],
+                        "related_evidence_ids": [],
+                    },
+                ],
+            },
+        )
+        regenerated = json.loads(
+            run(
+                "python3",
+                SCRIPTS / "question_cli.py",
+                "--workspace",
+                workspace,
+                "generate",
+                "--input",
+                question_input,
+            ).stdout
+        )
+        assert regenerated["needs_user_answer"] == 1
+        assert regenerated["awaiting_codex_review"] == 1
+        assert regenerated["status_counts"]["superseded"] == 1
+
+        review_input = Path(temporary) / "question-reviews.json"
+        write_json(
+            review_input,
+            {
+                "reviews": [
+                    {
+                        "id": "project-impact-baseline",
+                        "status": "resolved",
+                        "review_note": "Recorded as a labelled estimate rather than a measured result.",
+                        "related_evidence_ids": ["TEST-ESTIMATE-001"],
+                    }
+                ]
+            },
+        )
+        reviewed = json.loads(
+            run(
+                "python3",
+                SCRIPTS / "question_cli.py",
+                "--workspace",
+                workspace,
+                "review",
+                "--input",
+                review_input,
+            ).stdout
+        )
+        assert reviewed["awaiting_codex_review"] == 0
+        run(
+            "python3",
+            SCRIPTS / "question_cli.py",
+            "--workspace",
+            workspace,
+            "respond",
+            "--id",
+            "project-final-decision",
+            "--status",
+            "not_applicable",
+        )
+        question_validation = json.loads(
+            run("python3", SCRIPTS / "question_cli.py", "--workspace", workspace, "validate").stdout
+        )
+        assert question_validation["valid"]
+        final_question_bank = json.loads(
+            (workspace / "Evidence_Bank/personalized_questions.json").read_text(encoding="utf-8")
+        )
+        statuses_by_id = {item["id"]: item["status"] for item in final_question_bank["questions"]}
+        assert statuses_by_id["project-impact-baseline"] == "resolved"
+        assert statuses_by_id["project-team-ownership"] == "superseded"
+        assert statuses_by_id["project-final-decision"] == "not_applicable"
+        final_doctor = json.loads(run("python3", SCRIPTS / "doctor.py", workspace, "--strict").stdout)
+        assert final_doctor["ready_for_automation"] is True
+
+        future_timestamp = (project_fixture / "report.pdf").stat().st_mtime + 60
+        os.utime(project_fixture / "report.pdf", (future_timestamp, future_timestamp))
+        stale_doctor = run_unchecked("python3", SCRIPTS / "doctor.py", workspace, "--strict")
+        assert stale_doctor.returncode == 1
+        stale_diagnostic = json.loads(stale_doctor.stdout)
+        assert any("changed source files" in item for item in stale_diagnostic["warnings"])
+
+        write_json(
+            question_input,
+            {
+                "questions": [
+                    {
+                        "id": "generic-project-question",
+                        "priority": "medium",
+                        "category": "other",
+                        "question": "Tell me more about your project and what you learned?",
+                        "why_it_matters": "The answer might add more detail to a future application.",
+                        "source_refs": [
+                            {
+                                "path": "Projects/Test Project/report.pdf",
+                                "label": "Test Project Report",
+                                "locator": "Entire report",
+                                "context": "The report contains several sections about the project work.",
+                            }
+                        ],
+                        "related_evidence_ids": [],
+                    }
+                ]
+            },
+        )
+        rejected_generic = run_unchecked(
+            "python3",
+            SCRIPTS / "question_cli.py",
+            "--workspace",
+            workspace,
+            "generate",
+            "--input",
+            question_input,
+        )
+        assert rejected_generic.returncode != 0
+        assert "generic" in rejected_generic.stderr.lower()
 
         if platform.system() == "Darwin" and platform.machine().lower() in {"arm64", "aarch64"}:
             fake_plugin = Path(temporary) / "PermissionRepairPlugin"

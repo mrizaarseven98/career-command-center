@@ -1,6 +1,6 @@
 # Career Command Center
 
-Career Command Center combines a native macOS application with a Codex plugin. The app handles guided setup, documents, preferences, opportunity tracking, archive/delete, and automation settings. Codex handles evidence auditing, live job and PhD research, master CVs, tailored packages, and recurring runs.
+Career Command Center combines a native macOS application with a Codex plugin. The app handles guided setup, documents, personalized evidence questions, preferences, opportunity tracking, archive/delete, and automation settings. Codex handles source auditing, live job and PhD research, master CVs, tailored packages, and recurring runs.
 
 ## Requirements
 
@@ -26,7 +26,7 @@ Codex installs and opens the macOS app. Complete the seven setup steps, includin
 Finish Career Command Center setup.
 ```
 
-Codex then audits the evidence, derives or confirms role families, builds master CVs, and validates the workspace. It registers an automation only if you selected a recurring schedule.
+Codex then audits the evidence and places source-specific follow-up questions in the app. Each question cites the CV, report, transcript, or intake detail that triggered it. Answer them under **Questions**, then use **Review in Codex**. Codex updates the verified evidence, derives or confirms role families, builds master CVs, and validates the workspace. It registers an automation only after the evidence questions are resolved and you selected a recurring schedule.
 
 ## Install a Development Build
 
@@ -40,6 +40,7 @@ codex plugin add career-command-center@career-command-center-local
 ## Daily Use
 
 - Open `Career Command Center` from `~/Applications` or Spotlight.
+- Answer cited follow-ups under **Questions** and send completed responses back through **Review in Codex**.
 - Review verified opportunities under **To Apply**.
 - Use the posting and package buttons from the detail pane.
 - Mark an application **Applied** only after submission.

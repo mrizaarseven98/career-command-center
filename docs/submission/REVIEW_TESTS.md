@@ -16,9 +16,9 @@ The submission includes exactly five positive and three negative cases.
 
 **User prompt:** Finish Career Command Center setup.
 
-**Expected behavior:** After confirming onboarding is complete, the skill inventories supplied documents, extracts relevant evidence, records verified and unresolved claims separately, derives or confirms coherent role families, builds role-family master CVs, renders and inspects the documents, registers approved masters, and runs the strict diagnostic. It asks only unresolved high-impact questions.
+**Expected behavior:** After confirming onboarding is complete, the skill inventories supplied documents, extracts relevant evidence, records verified and unresolved claims separately, and writes only high-impact unresolved questions to the app's personalized queue. Each question cites a workspace-relative source, locator, and concrete ambiguity. The skill pauses master-CV generation while answers are outstanding. After the user answers in the app and requests review, it checks each answer against the cited source, updates approved evidence, records the review decision, derives or confirms coherent role families, builds and inspects role-family master CVs, registers approved masters, and runs the strict diagnostic.
 
-**Expected result shape:** Evidence-audit summary, master-CV paths, quality status, and automation status.
+**Expected result shape:** First pass: evidence-audit summary and question-queue counts. After review: evidence decisions, master-CV paths, quality status, and automation status.
 
 **Fixture:** A completed onboarding config plus sample CV, transcript, and project report containing no real personal data.
 

@@ -10,6 +10,8 @@ final class AppStore: ObservableObject {
     @Published var selectedLeadID: String?
     @Published var searchText = ""
     @Published var documentItems: [DocumentItem] = []
+    @Published var questionBank = PersonalizedQuestionBank()
+    @Published var selectedQuestionID: String?
     @Published var toastMessage = ""
     @Published var errorMessage = ""
     @Published var isBusy = false
@@ -18,19 +20,23 @@ final class AppStore: ObservableObject {
     private let fileManager = FileManager.default
     private let encoder: JSONEncoder
     private let decoder = JSONDecoder()
+    private let previewMode: Bool
 
     static let workspacePreferenceKey = "CareerCommandCenter.workspacePath"
 
     init(workspaceOverride: URL? = nil, preview: Bool = false) {
         encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
+        previewMode = preview
         workspaceURL = workspaceOverride ?? Self.resolveWorkspace()
 
         if preview {
             config = Self.previewConfig(workspaceURL: workspaceURL)
             state = Self.previewState()
             documentItems = Self.previewDocuments(workspaceURL: workspaceURL)
+            questionBank = Self.previewQuestionBank()
             selectedLeadID = state.leads.first?.id
+            selectedQuestionID = questionBank.questions.first?.id
             return
         }
 
@@ -38,6 +44,7 @@ final class AppStore: ObservableObject {
         loadConfig()
         loadState()
         refreshDocuments()
+        loadQuestions()
     }
 
     var stateURL: URL {
@@ -50,6 +57,10 @@ final class AppStore: ObservableObject {
 
     var automationStatusURL: URL {
         workspaceURL.appendingPathComponent("Automation/automation_status.json")
+    }
+
+    var questionsURL: URL {
+        workspaceURL.appendingPathComponent("Evidence_Bank/personalized_questions.json")
     }
 
     var selectedLead: LeadRecord? {
@@ -84,8 +95,33 @@ final class AppStore: ObservableObject {
         }
     }
 
+    var selectedQuestion: EvidenceQuestion? {
+        questionBank.questions.first { $0.id == selectedQuestionID }
+    }
+
+    var questionsNeedingAnswer: [EvidenceQuestion] {
+        sortedQuestions(questionBank.questions.filter { $0.status.needsUserAnswer })
+    }
+
+    var questionsAwaitingReview: [EvidenceQuestion] {
+        sortedQuestions(questionBank.questions.filter { $0.status.awaitsCodexReview })
+    }
+
+    var questionHistory: [EvidenceQuestion] {
+        sortedQuestions(questionBank.questions.filter { $0.status.isHistory })
+    }
+
+    var actionableQuestionCount: Int {
+        questionsNeedingAnswer.count + questionsAwaitingReview.count
+    }
+
+    var questionSidebarCount: Int {
+        max(actionableQuestionCount, questionBank.auditStatus.needsAudit ? 1 : 0)
+    }
+
     func count(for section: AppSection) -> Int {
         if section == .deleted { return state.deletedLeads.count }
+        if section == .questions { return questionSidebarCount }
         guard let status = section.leadStatus else { return 0 }
         return state.leads.filter { $0.status == status }.count
     }
@@ -94,6 +130,7 @@ final class AppStore: ObservableObject {
         loadConfig()
         loadState()
         refreshDocuments()
+        loadQuestions()
         showToast("Workspace refreshed")
     }
 
@@ -117,16 +154,52 @@ final class AppStore: ObservableObject {
         UserDefaults.standard.set(workspaceURL.path, forKey: Self.workspacePreferenceKey)
         saveConfig(markAutomationDirty: true)
         writeIntakeSummary()
-        let recurring = config.automation.enabled && config.automation.frequency != "manual"
-        showToast(recurring
-            ? "Setup saved. Return to Codex to confirm the schedule."
-            : "Setup saved. Return to Codex to complete the evidence audit.")
+        markQuestionAuditStale("Initial intake is ready for a source-specific evidence audit.")
+        showToast("Setup saved. Return to Codex to audit the files and generate your questions.")
     }
 
     func saveEvidenceAnswers() {
         saveConfig()
         writeIntakeSummary()
+        markQuestionAuditStale("Background answers changed after the previous evidence audit.")
         showToast("Evidence answers saved")
+    }
+
+    func refreshQuestions(showConfirmation: Bool = true) {
+        if previewMode { return }
+        loadQuestions()
+        if showConfirmation { showToast("Questions refreshed") }
+    }
+
+    func saveQuestionResponse(_ questionID: String, answer: String, status: EvidenceQuestionStatus) {
+        guard [.answered, .unableToVerify, .notApplicable].contains(status),
+              let index = questionBank.questions.firstIndex(where: { $0.id == questionID }) else { return }
+        let cleaned = answer.trimmingCharacters(in: .whitespacesAndNewlines)
+        if status == .answered && cleaned.isEmpty {
+            errorMessage = "Write an answer before marking this question ready for review."
+            return
+        }
+        questionBank.questions[index].answer = cleaned
+        questionBank.questions[index].status = status
+        questionBank.questions[index].answeredAt = Self.timestamp()
+        questionBank.questions[index].reviewedAt = ""
+        questionBank.questions[index].reviewNote = ""
+        saveQuestions()
+        switch status {
+        case .answered: showToast("Answer saved for Codex review")
+        case .unableToVerify: showToast("Evidence boundary recorded")
+        case .notApplicable: showToast("Question marked not applicable")
+        default: break
+        }
+    }
+
+    func reopenQuestion(_ questionID: String) {
+        guard let index = questionBank.questions.firstIndex(where: { $0.id == questionID }) else { return }
+        questionBank.questions[index].status = .open
+        questionBank.questions[index].reviewedAt = ""
+        questionBank.questions[index].reviewNote = ""
+        saveQuestions()
+        showToast("Question reopened")
     }
 
     func restartOnboarding() {
@@ -143,6 +216,7 @@ final class AppStore: ObservableObject {
         loadConfig()
         loadState()
         refreshDocuments()
+        loadQuestions()
     }
 
     func chooseWorkspaceFolder() {
@@ -302,6 +376,7 @@ final class AppStore: ObservableObject {
                 try copyItemUniquely(from: source, to: destination)
             }
             refreshDocuments()
+            markQuestionAuditStale("New or changed documents were imported after the previous evidence audit.")
             showToast("Documents imported")
         } catch {
             errorMessage = "Could not import documents: \(error.localizedDescription)"
@@ -322,6 +397,7 @@ final class AppStore: ObservableObject {
             for source in panel.urls {
                 try copyItemUniquely(from: source, to: destination)
             }
+            markQuestionAuditStale("New or changed project material was imported after the previous evidence audit.")
             showToast("Project material imported")
         } catch {
             errorMessage = "Could not import project material: \(error.localizedDescription)"
@@ -386,6 +462,18 @@ final class AppStore: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
+    func openQuestionSource(_ source: EvidenceQuestionSource) {
+        let path = NSString(string: source.path).expandingTildeInPath
+        let url = path.hasPrefix("/")
+            ? URL(fileURLWithPath: path)
+            : workspaceURL.appendingPathComponent(path)
+        guard fileManager.fileExists(atPath: url.path) else {
+            errorMessage = "The cited source could not be found at \(source.path)."
+            return
+        }
+        NSWorkspace.shared.open(url)
+    }
+
     func copyCodexRequest(_ text: String) {
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
@@ -401,6 +489,14 @@ final class AppStore: ObservableObject {
 
     func runSearchRequest() -> String {
         "Run my Career Command Center job and PhD search now using \(configURL.path)."
+    }
+
+    func questionGenerationRequest() -> String {
+        "Audit my Career Command Center CVs, project files, transcripts, and intake answers. Generate only source-specific, high-impact evidence questions in \(questionsURL.path) using the plugin question standard and question_cli.py."
+    }
+
+    func questionReviewRequest() -> String {
+        "Review my answered Career Command Center evidence questions in \(questionsURL.path). Update the verified evidence ledger and approved evidence, resolve each reviewed response through question_cli.py, and generate only necessary cited follow-ups."
     }
 
     func showToast(_ message: String) {
@@ -440,6 +536,92 @@ final class AppStore: ObservableObject {
             try atomicWrite(state, to: stateURL)
         } catch {
             errorMessage = "Could not save application state: \(error.localizedDescription)"
+        }
+    }
+
+    private func saveQuestions() {
+        questionBank.version = 1
+        questionBank.updatedAt = Self.timestamp()
+        do {
+            try atomicWrite(questionBank, to: questionsURL)
+        } catch {
+            errorMessage = "Could not save evidence questions: \(error.localizedDescription)"
+        }
+    }
+
+    private func markQuestionAuditStale(_ note: String) {
+        questionBank.auditStatus = questionBank.generationID.isEmpty ? .notStarted : .needsRefresh
+        questionBank.sourceChangeNote = note
+        saveQuestions()
+    }
+
+    private func loadQuestions() {
+        do {
+            if fileManager.fileExists(atPath: questionsURL.path) {
+                let data = try Data(contentsOf: questionsURL)
+                questionBank = try decoder.decode(PersonalizedQuestionBank.self, from: data)
+            } else {
+                questionBank = PersonalizedQuestionBank()
+                saveQuestions()
+            }
+            markQuestionAuditStaleIfSourcesChanged()
+            if !questionBank.questions.contains(where: { $0.id == selectedQuestionID }) {
+                selectedQuestionID = questionsNeedingAnswer.first?.id
+                    ?? questionsAwaitingReview.first?.id
+                    ?? questionHistory.first?.id
+            }
+        } catch {
+            errorMessage = "Could not read evidence questions: \(error.localizedDescription)"
+            questionBank = PersonalizedQuestionBank()
+            selectedQuestionID = nil
+        }
+    }
+
+    private func markQuestionAuditStaleIfSourcesChanged() {
+        guard questionBank.auditStatus == .current,
+              let auditedAt = ISO8601DateFormatter().date(from: questionBank.generatedAt),
+              let newestSource = newestEvidenceSourceDate(),
+              newestSource.timeIntervalSince(auditedAt) > 2 else { return }
+        questionBank.auditStatus = .needsRefresh
+        questionBank.sourceChangeNote = "Source files changed after the previous evidence audit."
+        saveQuestions()
+    }
+
+    private func newestEvidenceSourceDate() -> Date? {
+        let roots = [
+            workspaceURL.appendingPathComponent("Documents", isDirectory: true),
+            workspaceURL.appendingPathComponent("Projects", isDirectory: true),
+        ]
+        var newest: Date?
+        for root in roots {
+            guard let enumerator = fileManager.enumerator(
+                at: root,
+                includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
+                options: [.skipsHiddenFiles]
+            ) else { continue }
+            for case let url as URL in enumerator {
+                guard let values = try? url.resourceValues(
+                    forKeys: [.contentModificationDateKey, .isRegularFileKey]
+                ), values.isRegularFile == true, let modifiedAt = values.contentModificationDate else { continue }
+                if newest == nil || modifiedAt > newest! { newest = modifiedAt }
+            }
+        }
+        let intakeURL = workspaceURL.appendingPathComponent("Evidence_Bank/intake_answers.md")
+        if let values = try? intakeURL.resourceValues(forKeys: [.contentModificationDateKey]),
+           let modifiedAt = values.contentModificationDate,
+           newest == nil || modifiedAt > newest! {
+            newest = modifiedAt
+        }
+        return newest
+    }
+
+    private func sortedQuestions(_ questions: [EvidenceQuestion]) -> [EvidenceQuestion] {
+        let rank: [EvidenceQuestionPriority: Int] = [.critical: 0, .high: 1, .medium: 2]
+        return questions.sorted { lhs, rhs in
+            let left = rank[lhs.priority] ?? 3
+            let right = rank[rhs.priority] ?? 3
+            if left != right { return left < right }
+            return lhs.generatedAt > rhs.generatedAt
         }
     }
 
@@ -920,5 +1102,66 @@ extension AppStore {
                 byteCount: 280_000
             )
         ]
+    }
+
+    static func previewQuestionBank() -> PersonalizedQuestionBank {
+        PersonalizedQuestionBank(
+            generationID: "preview-audit-1",
+            auditStatus: .current,
+            generatedAt: timestamp(),
+            questions: [
+                EvidenceQuestion(
+                    id: "logitech-configuration-time-baseline",
+                    priority: .critical,
+                    category: .metric,
+                    question: "The workflow report projects a 50% reduction in configuration time. Was that figure measured against a baseline, estimated from the process, or proposed as a target?",
+                    whyItMatters: "The classification determines whether the CV can present the figure as a result, an estimate, or a design target.",
+                    sourceRefs: [
+                        EvidenceQuestionSource(
+                            path: "Projects/Workflow Automation/Final Report.pdf",
+                            label: "Workflow Automation Final Report",
+                            locator: "Discussion, page 18",
+                            context: "The report gives the 50% figure without identifying a measured baseline or validation run."
+                        )
+                    ],
+                    generatedAt: timestamp()
+                ),
+                EvidenceQuestion(
+                    id: "microfluidics-design-decision",
+                    priority: .high,
+                    category: .outcome,
+                    question: "Which channel or pillar geometry did your final microfluidic analysis support, and what simulation result drove that choice?",
+                    whyItMatters: "A concrete engineering decision would make the project evidence stronger than a description of the modelling workflow alone.",
+                    sourceRefs: [
+                        EvidenceQuestionSource(
+                            path: "Projects/Microfluidics/Project Report.pdf",
+                            label: "Capillary Microfluidics Project Report",
+                            locator: "Results and conclusion, pages 21-24",
+                            context: "Several geometries are compared, but the report does not clearly state the candidate's final design recommendation."
+                        )
+                    ],
+                    generatedAt: timestamp()
+                ),
+                EvidenceQuestion(
+                    id: "robot-gripper-personal-ownership",
+                    priority: .high,
+                    category: .ownership,
+                    question: "For the robotic gripper, which CAD, fabrication, control, and testing tasks did you personally complete?",
+                    whyItMatters: "The report uses team language, so individual ownership must be separated before project bullets are approved.",
+                    sourceRefs: [
+                        EvidenceQuestionSource(
+                            path: "Projects/Robotic Gripper/Final Presentation.pdf",
+                            label: "Robotic Gripper Final Presentation",
+                            locator: "Design and testing slides 6-14",
+                            context: "The presentation describes team outputs without assigning the main implementation tasks to individual members."
+                        )
+                    ],
+                    status: .answered,
+                    answer: "I designed the finger linkage and servo mount in Fusion 360, prepared the PETG prints, integrated the Arduino servo control, and ran the object-grasp tests. The PMMA frame layout was shared.",
+                    generatedAt: timestamp(),
+                    answeredAt: timestamp()
+                )
+            ]
+        )
     }
 }

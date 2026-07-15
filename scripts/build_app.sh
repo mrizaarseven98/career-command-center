@@ -29,6 +29,7 @@ SOURCES=(
   "$SOURCE_ROOT/Sources/OnboardingView.swift"
   "$SOURCE_ROOT/Sources/LeadWorkspaceView.swift"
   "$SOURCE_ROOT/Sources/LibraryViews.swift"
+  "$SOURCE_ROOT/Sources/QuestionsView.swift"
   "$SOURCE_ROOT/Sources/CareerCommandCenterApp.swift"
 )
 

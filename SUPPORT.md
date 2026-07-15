@@ -54,6 +54,14 @@ Ask Codex:
 Sync my Career Command Center automation settings.
 ```
 
+### Personalized questions do not appear
+
+Confirm that CVs or project files were imported, then use the **Audit in Codex** action under **Questions**. If Codex already completed the audit, press the refresh button in that workspace. Run the diagnostic if the queue still does not load; it validates `Evidence_Bank/personalized_questions.json` and reports malformed or unresolved records.
+
+### Answers remain ready for review
+
+Use **Review in Codex** from the Questions workspace. Saving an answer does not approve it automatically. Codex checks the cited source, updates verified evidence, and records whether the detail was accepted, excluded, or replaced by a narrower follow-up.
+
 ### A deleted opportunity returns
 
 Run the diagnostic. Permanent deletion should retain a minimal tombstone that prevents rediscovery.

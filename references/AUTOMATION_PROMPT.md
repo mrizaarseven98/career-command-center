@@ -4,7 +4,7 @@ Workspace: `{{WORKSPACE}}`
 Config: `{{CONFIG}}`
 CV standard: `{{STRATEGY}}`
 
-Read the config, workspace contract, evidence bank, state, and CV standard before doing anything. Current config overrides older run memory. The CV standard overrides old CVs and job-specific packages.
+Read the config, workspace contract, evidence bank, personalized question bank, state, and CV standard before doing anything. Current config overrides older run memory. The CV standard overrides old CVs and job-specific packages.
 
 ## Objective
 
@@ -67,13 +67,14 @@ Read `Config/command_center_config.json` before package creation. Create package
 Before generating a CV:
 
 1. Confirm `Verified_Evidence_Ledger.md`, `approved_evidence.json`, and at least one approved role-family master exist.
-2. Read the complete posting snapshot.
-3. Follow `CV_GENERATION_STANDARD.md` exactly.
-4. Copy one approved master. Never start from a blank page or an old tailored CV.
-5. Use approved evidence IDs and preserve measured, estimated, shared, and blocked-claim boundaries.
-6. Create `tailoring_notes.md` with the strategy version, base master, evidence IDs, changes, stretches, and review outcome.
-7. Render and inspect the PDF and editable source. Run evidence, ATS, duplicate, integrity, and visual checks.
-8. Do not mark a package ready while a blocker remains.
+2. Read `personalized_questions.json`. If any question is `open`, `answered`, or `unable_to_verify`, keep searching and saving verified leads but do not create a CV or cover-letter package until the evidence review is complete.
+3. Read the complete posting snapshot.
+4. Follow `CV_GENERATION_STANDARD.md` exactly.
+5. Copy one approved master. Never start from a blank page or an old tailored CV.
+6. Use approved evidence IDs and preserve measured, estimated, shared, and blocked-claim boundaries.
+7. Create `tailoring_notes.md` with the strategy version, base master, evidence IDs, changes, stretches, and review outcome.
+8. Render and inspect the PDF and editable source. Run evidence, ATS, duplicate, integrity, and visual checks.
+9. Do not mark a package ready while a blocker remains.
 
 Cover letters must be direct, specific, and natural. Avoid generic openings, exaggerated enthusiasm, symmetric template structure, corporate filler, contrast formulas, and unsupported claims.
 

@@ -10,9 +10,10 @@ struct SnapshotApp {
         let output = arguments.dropFirst(2).first ?? "/tmp/career-command-center-window.png"
         let useDarkAppearance = mode.contains("dark")
         let isOnboarding = mode.hasPrefix("onboarding")
+        let isCompact = mode.contains("compact")
         let size = isOnboarding
             ? CGSize(width: 1280, height: 800)
-            : CGSize(width: 1440, height: 900)
+            : (isCompact ? CGSize(width: 1280, height: 800) : CGSize(width: 1440, height: 900))
 
         let store = AppStore(
             workspaceOverride: URL(fileURLWithPath: "/tmp/career-command-center-window-preview", isDirectory: true),
@@ -22,6 +23,9 @@ struct SnapshotApp {
         if isOnboarding {
             store.config = AppConfig()
             store.config.workspacePath = store.workspaceURL.path
+        } else if mode.hasPrefix("questions") {
+            store.selectedSection = .questions
+            store.selectedQuestionID = store.questionsNeedingAnswer.first?.id
         }
 
         let root: AnyView

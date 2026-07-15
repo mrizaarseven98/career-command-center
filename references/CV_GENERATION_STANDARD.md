@@ -13,10 +13,11 @@ Read before drafting:
 2. `Evidence_Bank/Verified_Evidence_Ledger.md`.
 3. `Evidence_Bank/approved_evidence.json`.
 4. `Evidence_Bank/intake_answers.md`.
-5. The complete verified job-posting snapshot.
-6. A primary report, transcript, certificate, recommendation, or portfolio source for any unsettled claim.
+5. `Evidence_Bank/personalized_questions.json`, with no material answer awaiting Codex review.
+6. The complete verified job-posting snapshot.
+7. A primary report, transcript, certificate, recommendation, or portfolio source for any unsettled claim.
 
-If the ledger and evidence bank do not exist, build them before generating a CV. Do not compensate for missing evidence with generic prose.
+If the ledger and evidence bank do not exist, build them before generating a CV. Resolve or explicitly exclude material personalized questions before approving a role-family master. Do not compensate for missing evidence with generic prose.
 
 ## 2. Evidence classification
 

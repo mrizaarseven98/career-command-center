@@ -66,6 +66,10 @@ def main() -> int:
         REFERENCES / "cv_quality_rules.json",
         workspace / "Evidence_Bank/cv_quality_rules.json",
     )
+    copy_if_missing(
+        REFERENCES / "PERSONALIZED_QUESTION_STANDARD.md",
+        workspace / "Evidence_Bank/PERSONALIZED_QUESTION_STANDARD.md",
+    )
 
     state_path = workspace / "State/cv_command_center_state.json"
     if not state_path.exists():
@@ -111,6 +115,21 @@ def main() -> int:
             encoding="utf-8",
         )
 
+    questions_path = workspace / "Evidence_Bank/personalized_questions.json"
+    if not questions_path.exists():
+        write_json(
+            questions_path,
+            {
+                "version": 1,
+                "generation_id": "",
+                "audit_status": "not_started",
+                "source_change_note": "",
+                "generated_at": "",
+                "updated_at": timestamp(),
+                "questions": [],
+            },
+        )
+
     print(
         json.dumps(
             {
@@ -118,6 +137,7 @@ def main() -> int:
                 "state": str(state_path),
                 "config": str(workspace / "Config/command_center_config.json"),
                 "strategy": str(workspace / "Evidence_Bank/CV_GENERATION_STANDARD.md"),
+                "questions": str(questions_path),
             },
             indent=2,
         )
