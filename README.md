@@ -10,6 +10,8 @@ Career Command Center combines a native macOS application with a Codex plugin. T
 
 The bundled app is locally signed rather than App Store notarized. If macOS blocks its first launch after download, Control-click the app in `~/Applications`, choose **Open**, and confirm once.
 
+The installer restores launch permissions that may be removed when the plugin is transferred, then locally re-signs and verifies the copied app before opening it.
+
 ## Install From Codex
 
 Install **Career Command Center** from the Codex plugin directory. Start a new Codex task in the project that should hold your career workspace and say:

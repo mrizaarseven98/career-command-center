@@ -28,6 +28,16 @@ Do not attach CVs, transcripts, access tokens, private job-portal links, or othe
 
 The bundled app is locally signed and is not distributed through the Mac App Store. Control-click `Career Command Center.app` in `~/Applications`, choose **Open**, and confirm once.
 
+### macOS says the app executable is missing
+
+Install Career Command Center 1.2.1 or later, start a new Codex task, and ask:
+
+```text
+Update my Career Command Center app and connect it to this workspace.
+```
+
+The installer repairs transfer-sensitive executable permissions and verifies the app before launch. A manual source rebuild should not be needed.
+
 ### The app opens the wrong workspace
 
 Ask Codex to reinstall the companion app for the current project:

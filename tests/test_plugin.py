@@ -4,6 +4,10 @@
 from __future__ import annotations
 
 import json
+import os
+import platform
+import shutil
+import stat
 import subprocess
 import tempfile
 from pathlib import Path
@@ -244,6 +248,38 @@ def main() -> int:
         run("python3", SCRIPTS / "state_cli.py", "--workspace", workspace, "record-run", "--run-file", status_payload)
         status = json.loads((workspace / "Automation/automation_status.json").read_text(encoding="utf-8"))
         assert status["leads_added"] == 6 and status["last_run_at"]
+
+        if platform.system() == "Darwin" and platform.machine().lower() in {"arm64", "aarch64"}:
+            fake_plugin = Path(temporary) / "PermissionRepairPlugin"
+            fake_scripts = fake_plugin / "scripts"
+            fake_scripts.mkdir(parents=True)
+            shutil.copy2(SCRIPTS / "install_app.py", fake_scripts / "install_app.py")
+            shutil.copy2(SCRIPTS / "build_app.sh", fake_scripts / "build_app.sh")
+
+            source_app = PLUGIN_ROOT / "assets/macos-app/prebuilt/Career Command Center.app"
+            fake_app = fake_plugin / "assets/macos-app/prebuilt/Career Command Center.app"
+            shutil.copytree(source_app, fake_app, symlinks=True)
+            fake_executable = fake_app / "Contents/MacOS/CareerCommandCenter"
+            fake_executable.chmod(
+                fake_executable.stat().st_mode
+                & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+            )
+            assert not os.access(fake_executable, os.X_OK)
+
+            destination = Path(temporary) / "Applications/Career Command Center.app"
+            install_result = json.loads(
+                run(
+                    "python3",
+                    fake_scripts / "install_app.py",
+                    "--destination",
+                    destination,
+                    "--no-launch",
+                ).stdout
+            )
+            installed_executable = destination / "Contents/MacOS/CareerCommandCenter"
+            assert install_result["executable_permission_repaired"] is True
+            assert os.access(installed_executable, os.X_OK)
+            run("/usr/bin/codesign", "--verify", "--deep", "--strict", destination)
 
     print("Plugin integration tests passed")
     return 0

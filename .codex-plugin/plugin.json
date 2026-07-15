@@ -1,6 +1,6 @@
 {
   "name": "career-command-center",
-  "version": "1.2.0+codex.20260715172451",
+  "version": "1.2.1+codex.20260715200707",
   "description": "A macOS application and Codex workflow for evidence-led job discovery, application tracking, and tailored CV generation.",
   "author": {
     "name": "Mehmet Riza Arseven"
