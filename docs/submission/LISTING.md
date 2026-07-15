@@ -48,4 +48,4 @@ The workflow starts without assumptions about profession, target roles, countrie
 
 ## Release Notes
 
-Initial public submission. Career Command Center combines a skills-only Codex workflow with a native macOS companion app for guided evidence intake, targeted job and PhD research, role-family master CVs, tailored application packages, opportunity lifecycle management, and recurring automation synchronization. Version 1.2.0 adds public privacy, terms, support, reviewer tests, and explicit safeguards for evidence accuracy and external actions.
+Version 1.2.1 fixes native macOS app installation after plugin download or marketplace transfer. The installer now restores transfer-sensitive launch permissions, locally re-signs and verifies the copied app, and can run its source-build fallback even when the build script's executable bit was removed. The release includes a regression test for the downloaded-archive failure mode and does not alter career documents or workspace state.
