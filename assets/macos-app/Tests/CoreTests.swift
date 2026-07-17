@@ -132,6 +132,35 @@ struct CoreTests {
         try expect(store.actionableQuestionCount == 2, "question sidebar count includes open and review states")
         try expect(store.questionBank.auditStatus == .current, "generated question bank starts current")
 
+        let handoffPrompt = "Review evidence with spaces & symbols"
+        guard let handoffURL = AppStore.codexDeepLink(prompt: handoffPrompt, workspace: root),
+              let handoffComponents = URLComponents(url: handoffURL, resolvingAgainstBaseURL: false) else {
+            throw TestFailure(message: "Codex handoff deep link is valid")
+        }
+        let handoffItems = Dictionary(uniqueKeysWithValues: (handoffComponents.queryItems ?? []).map { ($0.name, $0.value ?? "") })
+        try expect(handoffComponents.scheme == "codex", "Codex handoff uses the registered URL scheme")
+        try expect(handoffComponents.host == "threads" && handoffComponents.path == "/new", "Codex handoff opens a new local task")
+        try expect(handoffItems["prompt"] == handoffPrompt, "Codex handoff preserves the complete prompt")
+        try expect(handoffItems["path"] == root.path, "Codex handoff opens the selected workspace")
+
+        let fakeCodex = root.appendingPathComponent("fake-codex")
+        try "#!/bin/sh\nprintf '%s\\n' \"$@\"\n".write(to: fakeCodex, atomically: true, encoding: .utf8)
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCodex.path)
+        setenv("CAREER_COMMAND_CENTER_CODEX_EXECUTABLE", fakeCodex.path, 1)
+        store.runSearchNow()
+        try expect(store.isCodexRunInProgress, "Run Now starts a direct Codex process")
+        let processDeadline = Date().addingTimeInterval(5)
+        while store.isCodexRunInProgress && Date() < processDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        unsetenv("CAREER_COMMAND_CENTER_CODEX_EXECUTABLE")
+        try expect(!store.isCodexRunInProgress, "Run Now clears its running state when Codex exits")
+        try expect(!store.codexRunLogPath.isEmpty, "Run Now records a visible log path")
+        let codexArguments = try String(contentsOfFile: store.codexRunLogPath, encoding: .utf8)
+        try expect(codexArguments.contains("--search"), "Run Now enables current web search")
+        try expect(codexArguments.contains(root.path), "Run Now executes against the selected workspace")
+        try expect(codexArguments.contains("Career Command Center plugin"), "Run Now explicitly invokes the installed workflow")
+
         let manuallyAddedProject = root.appendingPathComponent("Projects/Manual Import/notes.txt")
         try fileManager.createDirectory(
             at: manuallyAddedProject.deletingLastPathComponent(),

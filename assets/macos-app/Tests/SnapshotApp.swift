@@ -29,6 +29,12 @@ struct SnapshotApp {
         } else if mode.hasPrefix("questions") {
             store.selectedSection = .questions
             store.selectedQuestionID = store.questionsNeedingAnswer.first?.id
+        } else if mode.hasPrefix("automation") {
+            store.selectedSection = .automation
+            store.isCodexRunInProgress = mode.contains("running")
+            if store.isCodexRunInProgress {
+                store.codexRunLogPath = "/tmp/career-command-center-preview/run-now.log"
+            }
         }
 
         let root: AnyView

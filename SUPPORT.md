@@ -48,11 +48,15 @@ Update my Career Command Center app and connect it to this workspace.
 
 ### Search settings show Sync needed
 
-Ask the configured assistant:
+Press **Sync in Codex** to open a task with the workspace and request prefilled, then press **Send**. This confirmation is required by Codex. You can also ask the configured assistant:
 
 ```text
 Sync my Career Command Center automation settings.
 ```
+
+### Run Now copies a prompt or does not start
+
+Update to Career Command Center 1.4.1 or later. In Codex mode, **Run Now** launches a direct background Codex run and displays **Running** plus a **Run Log** button. Audit, review, and schedule-sync controls open a prefilled Codex task and require one press of **Send**; they should not show the old generic “request copied” message.
 
 ### Personalized questions do not appear
 

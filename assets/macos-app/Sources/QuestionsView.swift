@@ -70,7 +70,7 @@ struct QuestionsView: View {
             Spacer()
             if store.questionBank.auditStatus.needsAudit {
                 Button {
-                    store.copyCodexRequest(store.questionGenerationRequest())
+                    store.openAssistantRequest(store.questionGenerationRequest())
                 } label: {
                     Label("Audit in \(store.assistantDisplayName)", systemImage: "doc.text.magnifyingglass")
                 }
@@ -78,7 +78,7 @@ struct QuestionsView: View {
             }
             if !store.questionsAwaitingReview.isEmpty {
                 Button {
-                    store.copyCodexRequest(store.questionReviewRequest())
+                    store.openAssistantRequest(store.questionReviewRequest())
                 } label: {
                     Label("Review in \(store.assistantDisplayName)", systemImage: "arrow.up.right.square")
                 }
@@ -160,7 +160,7 @@ struct QuestionsView: View {
                 title: "No audit questions yet",
                 message: "Ask \(store.assistantDisplayName) to read the imported evidence and create cited follow-up questions.",
                 actionTitle: "Audit in \(store.assistantDisplayName)",
-                action: { store.copyCodexRequest(store.questionGenerationRequest()) }
+                action: { store.openAssistantRequest(store.questionGenerationRequest()) }
             )
         case .needsAnswer where !store.questionsAwaitingReview.isEmpty:
             EmptyStateView(
@@ -168,7 +168,7 @@ struct QuestionsView: View {
                 title: "Every question has a response",
                 message: "Your saved answers are ready to be checked against the source files.",
                 actionTitle: "Review in \(store.assistantDisplayName)",
-                action: { store.copyCodexRequest(store.questionReviewRequest()) }
+                action: { store.openAssistantRequest(store.questionReviewRequest()) }
             )
         case .needsAnswer:
             EmptyStateView(
@@ -328,7 +328,7 @@ struct QuestionsView: View {
 
                     if question.status.awaitsCodexReview {
                         Button {
-                            store.copyCodexRequest(store.questionReviewRequest())
+                            store.openAssistantRequest(store.questionReviewRequest())
                         } label: {
                             Label("Review in \(store.assistantDisplayName)", systemImage: "arrow.up.right.square")
                         }

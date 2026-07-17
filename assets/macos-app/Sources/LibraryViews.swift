@@ -1,3 +1,4 @@
+import Combine
 import Foundation
 import SwiftUI
 
@@ -237,24 +238,41 @@ struct EvidenceView: View {
 struct AutomationView: View {
     @ObservedObject var store: AppStore
     @State private var runStatus: AutomationRunStatus?
+    private let runRefreshTimer = Timer.publish(every: 3, on: .main, in: .common).autoconnect()
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
                 SectionTitle(title: "Automation", subtitle: "\(store.assistantDisplayName) search schedule and package-generation policy")
                 Spacer()
+                if !store.codexRunLogPath.isEmpty {
+                    Button {
+                        store.open(path: store.codexRunLogPath)
+                    } label: {
+                        Label("Run Log", systemImage: "doc.text")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                }
                 Button {
-                    store.copyCodexRequest(store.runSearchRequest())
+                    store.runSearchNow()
                 } label: {
-                    Label("Run Now", systemImage: "play.fill")
+                    Label(store.isCodexRunInProgress ? "Running" : "Run Now", systemImage: store.isCodexRunInProgress ? "hourglass" : "play.fill")
                 }
                 .buttonStyle(PrimaryButtonStyle())
+                .disabled(store.isCodexRunInProgress)
             }
             .padding(22)
             Divider()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
+                    if store.isCodexRunInProgress {
+                        InlineBanner(
+                            kind: .info,
+                            title: "Codex search is running",
+                            message: "The search is executing in this workspace. Results appear here when Codex records the run."
+                        )
+                    }
                     if store.config.automation.needsCodexSync {
                         HStack(spacing: 12) {
                             InlineBanner(
@@ -263,7 +281,7 @@ struct AutomationView: View {
                                 message: "The saved schedule differs from the registered automation. Ask \(store.assistantDisplayName) to sync it before relying on the next run."
                             )
                             Button {
-                                store.copyCodexRequest(store.automationSyncRequest())
+                                store.openAssistantRequest(store.automationSyncRequest())
                             } label: {
                                 Label("Sync in \(store.assistantDisplayName)", systemImage: "arrow.triangle.2.circlepath")
                             }
@@ -365,6 +383,9 @@ struct AutomationView: View {
         }
         .background(AppTheme.canvas)
         .onAppear { runStatus = AutomationRunStatus.load(from: store.automationStatusURL) }
+        .onReceive(runRefreshTimer) { _ in
+            runStatus = AutomationRunStatus.load(from: store.automationStatusURL)
+        }
     }
 
     private func metricTile(title: String, value: String, icon: String) -> some View {

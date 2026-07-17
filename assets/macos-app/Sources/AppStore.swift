@@ -15,12 +15,16 @@ final class AppStore: ObservableObject {
     @Published var toastMessage = ""
     @Published var errorMessage = ""
     @Published var isBusy = false
+    @Published var isCodexRunInProgress = false
+    @Published var codexRunLogPath = ""
 
     private(set) var workspaceURL: URL
     private let fileManager = FileManager.default
     private let encoder: JSONEncoder
     private let decoder = JSONDecoder()
     private let previewMode: Bool
+    private var codexRunProcess: Process?
+    private var codexRunLogHandle: FileHandle?
 
     static let workspacePreferenceKey = "CareerCommandCenter.workspacePath"
     static let assistantProviderPreferenceKey = "CareerCommandCenter.assistantProvider"
@@ -485,13 +489,76 @@ final class AppStore: ObservableObject {
         NSWorkspace.shared.open(url)
     }
 
-    func copyCodexRequest(_ text: String) {
+    func openAssistantRequest(_ text: String) {
+        if assistantProvider == "codex",
+           let url = Self.codexDeepLink(prompt: text, workspace: workspaceURL),
+           NSWorkspace.shared.open(url) {
+            showToast("Opened in Codex. Press Send to continue.")
+            return
+        }
+
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(text, forType: .string)
-        if assistantProvider == "codex", let url = URL(string: "codex://") {
-            NSWorkspace.shared.open(url)
+        showToast("\(assistantDisplayName) request copied. Paste it into a new task.")
+    }
+
+    func runSearchNow() {
+        guard assistantProvider == "codex" else {
+            openAssistantRequest(runSearchRequest())
+            return
         }
-        showToast("\(assistantDisplayName) request copied")
+        guard !isCodexRunInProgress else {
+            showToast("A Codex search is already running")
+            return
+        }
+        guard let executable = codexExecutableURL() else {
+            errorMessage = "Codex could not be found. Install or update the Codex desktop app, then try again."
+            return
+        }
+
+        let logsDirectory = workspaceURL.appendingPathComponent("Logs", isDirectory: true)
+        let stamp = Self.timestamp().replacingOccurrences(of: ":", with: "-")
+        let logURL = logsDirectory.appendingPathComponent("run-now-\(stamp).log")
+
+        do {
+            try fileManager.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
+            guard fileManager.createFile(atPath: logURL.path, contents: nil),
+                  let logHandle = try? FileHandle(forWritingTo: logURL) else {
+                throw CocoaError(.fileWriteUnknown)
+            }
+
+            let process = Process()
+            process.executableURL = executable
+            process.currentDirectoryURL = workspaceURL
+            process.arguments = [
+                "--search",
+                "exec",
+                "--skip-git-repo-check",
+                "--sandbox", "workspace-write",
+                "-C", workspaceURL.path,
+                runSearchRequest()
+            ]
+            process.standardOutput = logHandle
+            process.standardError = logHandle
+            process.terminationHandler = { [weak self] completedProcess in
+                Task { @MainActor in
+                    self?.finishCodexRun(exitCode: completedProcess.terminationStatus)
+                }
+            }
+
+            codexRunProcess = process
+            codexRunLogHandle = logHandle
+            codexRunLogPath = logURL.path
+            isCodexRunInProgress = true
+            try process.run()
+            showToast("Codex search started")
+        } catch {
+            codexRunProcess = nil
+            try? codexRunLogHandle?.close()
+            codexRunLogHandle = nil
+            isCodexRunInProgress = false
+            errorMessage = "Could not start Codex: \(error.localizedDescription)"
+        }
     }
 
     func automationSyncRequest() -> String {
@@ -499,7 +566,7 @@ final class AppStore: ObservableObject {
     }
 
     func runSearchRequest() -> String {
-        "Run my Career Command Center job and PhD search now using \(configURL.path)."
+        "Use the Career Command Center plugin to run my job and PhD search now using \(configURL.path). Execute the current rendered automation specification, update the app state through state_cli.py, and record the completed run."
     }
 
     func questionGenerationRequest() -> String {
@@ -515,6 +582,47 @@ final class AppStore: ObservableObject {
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(2.4))
             if toastMessage == message { toastMessage = "" }
+        }
+    }
+
+    static func codexDeepLink(prompt: String, workspace: URL) -> URL? {
+        var components = URLComponents(string: "codex://threads/new")
+        components?.queryItems = [
+            URLQueryItem(name: "prompt", value: prompt),
+            URLQueryItem(name: "path", value: workspace.path)
+        ]
+        return components?.url
+    }
+
+    private func codexExecutableURL() -> URL? {
+        var candidates: [URL] = []
+        if let override = ProcessInfo.processInfo.environment["CAREER_COMMAND_CENTER_CODEX_EXECUTABLE"],
+           !override.isEmpty {
+            candidates.append(URL(fileURLWithPath: override))
+        }
+        candidates += [
+            URL(fileURLWithPath: "/Applications/ChatGPT.app/Contents/Resources/codex"),
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications/ChatGPT.app/Contents/Resources/codex"),
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/codex"),
+            URL(fileURLWithPath: "/opt/homebrew/bin/codex"),
+            URL(fileURLWithPath: "/usr/local/bin/codex")
+        ]
+        return candidates.first { fileManager.isExecutableFile(atPath: $0.path) }
+    }
+
+    private func finishCodexRun(exitCode: Int32) {
+        try? codexRunLogHandle?.close()
+        codexRunLogHandle = nil
+        codexRunProcess = nil
+        isCodexRunInProgress = false
+        loadConfig()
+        loadState()
+        refreshDocuments()
+        loadQuestions()
+        if exitCode == 0 {
+            showToast("Codex search completed")
+        } else {
+            errorMessage = "Codex search stopped with exit code \(exitCode). Open the run log for details."
         }
     }
 

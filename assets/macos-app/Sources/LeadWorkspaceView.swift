@@ -123,12 +123,13 @@ struct SidebarView: View {
             }
 
             Button {
-                store.copyCodexRequest(store.runSearchRequest())
+                store.runSearchNow()
             } label: {
-                Label("Run Search", systemImage: "play.fill")
+                Label(store.isCodexRunInProgress ? "Search Running" : "Run Search", systemImage: store.isCodexRunInProgress ? "hourglass" : "play.fill")
                     .frame(maxWidth: .infinity)
             }
             .buttonStyle(PrimaryButtonStyle())
+            .disabled(store.isCodexRunInProgress)
             .padding(.horizontal, 12)
             .padding(.bottom, 8)
 
@@ -245,7 +246,7 @@ struct OpportunityListView: View {
                     title: emptyTitle,
                     message: emptyMessage,
                     actionTitle: store.selectedSection == .toApply ? "Run Search" : nil,
-                    action: store.selectedSection == .toApply ? { store.copyCodexRequest(store.runSearchRequest()) } : nil
+                    action: store.selectedSection == .toApply ? { store.runSearchNow() } : nil
                 )
                 Spacer()
             } else {
