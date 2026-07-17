@@ -170,7 +170,12 @@ final class AppStore: ObservableObject {
         saveConfig(markAutomationDirty: true)
         writeIntakeSummary()
         markQuestionAuditStale("Initial intake is ready for a source-specific evidence audit.")
-        showToast("Setup saved. Return to \(assistantDisplayName) to audit the files and generate your questions.")
+        openAssistantRequest(setupCompletionRequest())
+    }
+
+    func saveAutomationAndOpenSync() {
+        saveConfig(markAutomationDirty: true)
+        openAssistantRequest(automationSyncRequest())
     }
 
     func saveEvidenceAnswers() {
@@ -562,7 +567,11 @@ final class AppStore: ObservableObject {
     }
 
     func automationSyncRequest() -> String {
-        "Sync my Career Command Center automation with the settings in \(configURL.path)."
+        "Use the Career Command Center plugin to synchronize the real Codex scheduled task with \(configURL.path). Render the current automation specification, create or update the single matching automation when active, pause or remove it when manual mode is selected, and mark the app synchronized only after the Codex automation operation succeeds."
+    }
+
+    func setupCompletionRequest() -> String {
+        "Use the Career Command Center plugin to finish setup for the workspace at \(workspaceURL.path). Audit the imported documents and evidence, create only source-specific follow-up questions, and complete the evidence foundation according to the plugin workflow. Read \(configURL.path). If that configuration requests a recurring schedule and the evidence workflow is ready, create or update the single matching Codex automation and mark it synchronized only after the automation operation succeeds."
     }
 
     func runSearchRequest() -> String {

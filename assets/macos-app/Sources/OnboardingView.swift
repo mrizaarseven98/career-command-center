@@ -481,10 +481,10 @@ struct OnboardingView: View {
 
             InlineBanner(
                 kind: .info,
-                title: "Complete the evidence audit in \(store.assistantDisplayName)",
+                title: "One final step in \(store.assistantDisplayName)",
                 message: store.config.automation.frequency == "manual"
-                    ? "After this window closes, return to \(store.assistantDisplayName) and say: Finish Career Command Center setup. \(store.assistantDisplayName) will audit the files and place any source-specific follow-ups in Questions. No recurring search will be registered."
-                    : "After this window closes, return to \(store.assistantDisplayName) and say: Finish Career Command Center setup. \(store.assistantDisplayName) will audit the files and place any source-specific follow-ups in Questions before it validates and registers the schedule."
+                    ? "Finish Setup opens a prepared task. Press Send once so \(store.assistantDisplayName) can audit the files and place any source-specific follow-ups in Questions. No recurring search will be registered."
+                    : "Finish Setup opens a prepared task. Press Send once so \(store.assistantDisplayName) can audit the evidence, create any source-specific follow-ups, and register the requested schedule when the evidence workflow is ready."
             )
         }
     }
@@ -511,7 +511,7 @@ struct OnboardingView: View {
                 Button {
                     store.finishOnboarding()
                 } label: {
-                    Label("Finish Setup", systemImage: "checkmark")
+                    Label("Finish Setup in \(store.assistantDisplayName)", systemImage: "arrow.up.forward.app")
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(!canContinue)

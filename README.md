@@ -20,7 +20,7 @@ Install **Career Command Center** from the Codex plugin directory. Start a new C
 Set up Career Command Center.
 ```
 
-Codex installs and opens the macOS app. Complete the seven setup steps, including the document and project intake. Fresh setup starts blank and asks for evidence before search preferences; it does not guess your profession or enable a recurring schedule. Return to Codex and say:
+Codex installs and opens the macOS app. Complete the seven setup steps, including the document and project intake. Fresh setup starts blank and asks for evidence before search preferences; it does not guess your profession or enable a recurring schedule. **Finish Setup in Codex** opens a new task with the correct workspace and request prefilled; press **Send** once to continue. You can also return to Codex manually and say:
 
 ```text
 Finish Career Command Center setup.
@@ -67,6 +67,7 @@ codex plugin add career-command-center@career-command-center-local
 - Use **Delete** to move a posting to Recently Deleted. Permanent deletion removes the details but retains a dedupe marker so the automation cannot add the same role again.
 - Edit countries, role families, job or PhD categories, work arrangement, thresholds, and exclusions under **Settings**.
 - Edit timing, search depth, minimum lead count, and automatic package generation under **Automation**.
+- **Save & Sync in Codex** saves schedule changes and opens the exact synchronization task. Press **Send** once; the app remains in **Sync required** state until Codex successfully creates, updates, pauses, or removes the scheduled task.
 - In Codex mode, **Run Now** starts a background `codex exec` search directly in the selected workspace and exposes its run log in the app. It does not require copying or sending a prompt.
 - Audit, review, and schedule-sync actions open a new Codex task with the correct prompt and workspace prefilled. Codex requires the user to press **Send** once before that task begins. Claude handoffs are copied because Claude Code does not provide the same desktop deep-link interface.
 - When the app shows **Sync needed**, use its sync handoff or ask the configured assistant to synchronize Career Command Center.

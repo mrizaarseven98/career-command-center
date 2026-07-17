@@ -48,7 +48,7 @@ Update my Career Command Center app and connect it to this workspace.
 
 ### Search settings show Sync needed
 
-Press **Sync in Codex** to open a task with the workspace and request prefilled, then press **Send**. This confirmation is required by Codex. You can also ask the configured assistant:
+Press **Sync in Codex**, or change the schedule and use **Save & Sync in Codex**, to open a task with the workspace and request prefilled. Press **Send** once. This confirmation is required by Codex, and the app must continue to show **Sync required** until the scheduled-task operation succeeds. You can also ask the configured assistant:
 
 ```text
 Sync my Career Command Center automation settings.

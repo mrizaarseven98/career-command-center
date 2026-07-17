@@ -367,11 +367,8 @@ struct AutomationView: View {
 
                     HStack {
                         Spacer()
-                        Button("Save Schedule") {
-                            store.saveConfig(markAutomationDirty: true)
-                            store.showToast(store.config.automation.frequency == "manual"
-                                ? "Manual mode saved; ask \(store.assistantDisplayName) to remove any old schedule"
-                                : "Schedule saved; \(store.assistantDisplayName) sync required")
+                        Button("Save & Sync in \(store.assistantDisplayName)") {
+                            store.saveAutomationAndOpenSync()
                         }
                         .buttonStyle(PrimaryButtonStyle())
                     }

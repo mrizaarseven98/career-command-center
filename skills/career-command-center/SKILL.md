@@ -19,7 +19,7 @@ python3 PLUGIN_ROOT/scripts/bootstrap_workspace.py WORKSPACE
 python3 PLUGIN_ROOT/scripts/install_app.py --workspace WORKSPACE
 ```
 
-3. Tell the user the app has opened and ask them to complete every wizard step. New setup is deliberately neutral: no role family, country, opportunity type, seniority, CV language, photo policy, or recurring schedule should be assumed. Do not register an automation before `onboarding_completed` is true.
+3. Tell the user the app has opened and ask them to complete every wizard step. New setup is deliberately neutral: no role family, country, opportunity type, seniority, CV language, photo policy, or recurring schedule should be assumed. **Finish Setup in Codex** opens this completion request in a new task; the user must press **Send** once. Do not register an automation before `onboarding_completed` is true.
 4. When the user returns with `Finish Career Command Center setup`, run `doctor.py WORKSPACE` and read:
    - `Config/command_center_config.json`
    - `Evidence_Bank/intake_answers.md`
@@ -65,6 +65,8 @@ python3 PLUGIN_ROOT/scripts/mark_automation_synced.py WORKSPACE --automation-id 
 ## Sync Settings
 
 The automation reads search countries, opportunity types, work arrangements, role families, thresholds, and exclusions from config on every run. Those edits do not require prompt rewriting.
+
+The app's **Save & Sync in Codex** action saves the schedule and opens the exact synchronization request in a new Codex task. After the user presses **Send**, perform the synchronization below. Never treat the local config flag as proof that a scheduled task exists.
 
 Frequency, day, time, enabled state, and automation ID changes require synchronization:
 

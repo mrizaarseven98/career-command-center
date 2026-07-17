@@ -26,6 +26,10 @@ struct SnapshotApp {
         if isOnboarding {
             store.config = AppConfig()
             store.config.workspacePath = store.workspaceURL.path
+            if mode.contains("daily") {
+                store.config.automation.frequency = "daily"
+                store.config.automation.enabled = true
+            }
         } else if mode.hasPrefix("questions") {
             store.selectedSection = .questions
             store.selectedQuestionID = store.questionsNeedingAnswer.first?.id

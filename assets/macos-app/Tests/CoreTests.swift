@@ -143,6 +143,16 @@ struct CoreTests {
         try expect(handoffItems["prompt"] == handoffPrompt, "Codex handoff preserves the complete prompt")
         try expect(handoffItems["path"] == root.path, "Codex handoff opens the selected workspace")
 
+        let setupRequest = store.setupCompletionRequest()
+        try expect(setupRequest.contains("Career Command Center plugin"), "fresh setup explicitly invokes the installed plugin")
+        try expect(setupRequest.contains(root.path), "fresh setup hands off the selected workspace")
+        try expect(setupRequest.contains("create or update the single matching Codex automation"), "fresh recurring setup requests a real Codex automation")
+
+        let syncRequest = store.automationSyncRequest()
+        try expect(syncRequest.contains(store.configURL.path), "schedule sync reads the saved app configuration")
+        try expect(syncRequest.contains("create or update the single matching automation"), "schedule sync updates the real registered automation")
+        try expect(syncRequest.contains("only after the Codex automation operation succeeds"), "schedule sync cannot claim success before registration")
+
         let fakeCodex = root.appendingPathComponent("fake-codex")
         try "#!/bin/sh\nprintf '%s\\n' \"$@\"\n".write(to: fakeCodex, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCodex.path)
