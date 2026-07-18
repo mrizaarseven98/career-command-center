@@ -53,6 +53,7 @@ COMMON_SOURCES=(
 )
 COMMON_FLAGS=(
   -swift-version 5
+  -strict-concurrency=complete
   -parse-as-library
   -target "$ARCH-apple-macos14.0"
   -module-cache-path "$CACHE"
@@ -77,6 +78,7 @@ run_swift "$TEST_BUILD/compatibility.log" \
 
 run_swift "$TEST_BUILD/update-stage.log" \
   -swift-version 5 \
+  -strict-concurrency=complete \
   -parse-as-library \
   -target "$ARCH-apple-macos14.0" \
   -module-cache-path "$CACHE" \

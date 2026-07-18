@@ -702,8 +702,9 @@ final class AppStore: ObservableObject {
             process.standardOutput = logHandle
             process.standardError = logHandle
             process.terminationHandler = { [weak self] completedProcess in
-                Task { @MainActor in
-                    self?.finishSearchRun(exitCode: completedProcess.terminationStatus)
+                let exitCode = completedProcess.terminationStatus
+                Task { @MainActor [weak self] in
+                    self?.finishSearchRun(exitCode: exitCode)
                 }
             }
 

@@ -83,6 +83,7 @@ for arch in "${ARCHES[@]}"; do
   cache="$MODULE_CACHE/$arch"
   run_swift "$BUILD_ROOT/swift-main-$arch.log" "$cache" \
     -swift-version 5 \
+    -strict-concurrency=complete \
     -parse-as-library \
     -O \
     -target "$arch-apple-macos14.0" \
@@ -94,6 +95,7 @@ for arch in "${ARCHES[@]}"; do
     -o "$main_slice"
   run_swift "$BUILD_ROOT/swift-helper-$arch.log" "$cache" \
     -swift-version 5 \
+    -strict-concurrency=complete \
     -parse-as-library \
     -O \
     -target "$arch-apple-macos14.0" \
