@@ -1,7 +1,7 @@
 {
   "$schema": "https://json.schemastore.org/claude-code-marketplace.json",
   "name": "career-command-center",
-  "version": "2.0.0",
+  "version": "2.0.1",
   "description": "Career Command Center plugins for evidence-led job and PhD applications.",
   "owner": {
     "name": "Mehmet Riza Arseven"
@@ -19,7 +19,7 @@
       ],
       "commands": "./claude-commands/",
       "description": "Audit career evidence, research targeted roles, tailor CVs, and track applications in a native macOS workspace.",
-      "version": "2.0.0",
+      "version": "2.0.1",
       "author": {
         "name": "Mehmet Riza Arseven"
       },

@@ -1,3 +1,4 @@
+import AppKit
 import SwiftUI
 
 @main
@@ -25,6 +26,9 @@ struct CareerCommandCenterApp: App {
             .preferredColorScheme(nil)
             .task {
                 await store.checkForUpdates(silent: true)
+            }
+            .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
+                store.refreshAutomationSyncState()
             }
         }
         .defaultSize(width: 1280, height: 800)

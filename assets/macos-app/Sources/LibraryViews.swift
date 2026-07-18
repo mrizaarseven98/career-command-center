@@ -264,7 +264,7 @@ struct AutomationView: View {
                     Button {
                         store.runSearchNow()
                     } label: {
-                        Label("Run Now", systemImage: "play.fill")
+                        Label("Run Search Now", systemImage: "play.fill")
                     }
                     .buttonStyle(PrimaryButtonStyle())
                 }
@@ -285,13 +285,13 @@ struct AutomationView: View {
                         HStack(spacing: 12) {
                             InlineBanner(
                                 kind: .warning,
-                                title: "\(store.assistantDisplayName) sync required",
-                                message: "The saved schedule differs from the registered automation. Ask \(store.assistantDisplayName) to sync it before relying on the next run."
+                                title: "Recurring schedule needs registration",
+                                message: "The schedule is saved locally but is not active in \(store.assistantDisplayName). Open the prepared task and press Send once. This is separate from Run Search Now."
                             )
                             Button {
                                 store.openAssistantRequest(store.automationSyncRequest())
                             } label: {
-                                Label("Sync in \(store.assistantDisplayName)", systemImage: "arrow.triangle.2.circlepath")
+                                Label("Open \(store.assistantDisplayName) to Register", systemImage: "arrow.up.forward.app")
                             }
                             .buttonStyle(PrimaryButtonStyle())
                         }
@@ -375,7 +375,7 @@ struct AutomationView: View {
 
                     HStack {
                         Spacer()
-                        Button("Save & Sync in \(store.assistantDisplayName)") {
+                        Button("Save Schedule & Open \(store.assistantDisplayName)") {
                             store.saveAutomationAndOpenSync()
                         }
                         .buttonStyle(PrimaryButtonStyle())
@@ -387,8 +387,12 @@ struct AutomationView: View {
             }
         }
         .background(AppTheme.canvas)
-        .onAppear { runStatus = AutomationRunStatus.load(from: store.automationStatusURL) }
+        .onAppear {
+            store.refreshAutomationSyncState()
+            runStatus = AutomationRunStatus.load(from: store.automationStatusURL)
+        }
         .onReceive(runRefreshTimer) { _ in
+            store.refreshAutomationSyncState()
             runStatus = AutomationRunStatus.load(from: store.automationStatusURL)
         }
     }

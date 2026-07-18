@@ -109,7 +109,7 @@ struct SidebarView: View {
                         VStack(alignment: .leading, spacing: 1) {
                             Text("Sync needed")
                                 .font(.system(size: 11, weight: .semibold))
-                            Text("Automation settings changed")
+                            Text("Recurring schedule not registered")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
                         }

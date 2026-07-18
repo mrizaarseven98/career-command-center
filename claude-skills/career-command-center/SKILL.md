@@ -1,7 +1,7 @@
 ---
 name: career-command-center
 description: Install, set up, diagnose, or operate Career Command Center; audit career evidence; generate cited follow-up questions; build role-family master CVs; research targeted jobs or PhDs; tailor application packages; track applications; or synchronize recurring searches with Claude Code.
-version: 2.0.0
+version: 2.0.1
 ---
 
 # Career Command Center for Claude Code

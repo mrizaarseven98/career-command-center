@@ -359,6 +359,16 @@ struct CoreTests {
         try expect(config.profile.fullName == "Test Candidate", "config persists")
         try expect(config.automation.needsCodexSync, "schedule changes mark Codex sync required")
 
+        config.automation.needsCodexSync = false
+        config.automation.lastSyncedAt = "2026-07-18T08:00:00Z"
+        config.automation.automationID = "external-codex-automation"
+        configData = try JSONEncoder().encode(config)
+        try configData.write(to: reloaded.configURL, options: .atomic)
+        reloaded.refreshAutomationSyncState()
+        try expect(!reloaded.config.automation.needsCodexSync, "external Codex sync clears the in-memory warning")
+        try expect(reloaded.config.automation.lastSyncedAt == "2026-07-18T08:00:00Z", "external sync timestamp refreshes in memory")
+        try expect(reloaded.config.automation.automationID == "external-codex-automation", "external automation identity refreshes in memory")
+
         let legacyWorkspace = root.appendingPathComponent("Legacy Workspace", isDirectory: true)
         let legacyStore = AppStore(workspaceOverride: legacyWorkspace)
         try expect(

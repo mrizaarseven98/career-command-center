@@ -230,6 +230,23 @@ final class AppStore: ObservableObject {
         showToast("Workspace refreshed")
     }
 
+    func refreshAutomationSyncState() {
+        guard !previewMode,
+              let data = try? Data(contentsOf: configURL),
+              let savedConfig = try? decoder.decode(AppConfig.self, from: data) else { return }
+
+        let savedAutomation = savedConfig.automation
+        guard config.automation.needsCodexSync != savedAutomation.needsCodexSync
+                || config.automation.lastSyncedAt != savedAutomation.lastSyncedAt
+                || config.automation.automationID != savedAutomation.automationID else { return }
+
+        var refreshedConfig = config
+        refreshedConfig.automation.needsCodexSync = savedAutomation.needsCodexSync
+        refreshedConfig.automation.lastSyncedAt = savedAutomation.lastSyncedAt
+        refreshedConfig.automation.automationID = savedAutomation.automationID
+        config = refreshedConfig
+    }
+
     func saveConfig(markAutomationDirty: Bool = false) {
         if markAutomationDirty {
             config.automation.needsCodexSync = true

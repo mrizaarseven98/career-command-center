@@ -66,7 +66,7 @@ python3 PLUGIN_ROOT/scripts/mark_automation_synced.py WORKSPACE --automation-id 
 
 The automation reads search countries, opportunity types, work arrangements, role families, thresholds, and exclusions from config on every run. Those edits do not require prompt rewriting.
 
-The app's **Save & Sync in Codex** action saves the schedule and opens the exact synchronization request in a new Codex task. After the user presses **Send**, perform the synchronization below. Never treat the local config flag as proof that a scheduled task exists.
+The app's **Save Schedule & Open Codex** action saves the schedule and opens the exact synchronization request in a new Codex task. After the user presses **Send**, perform the synchronization below. Never treat the local config flag as proof that a scheduled task exists.
 
 Frequency, day, time, enabled state, and automation ID changes require synchronization:
 

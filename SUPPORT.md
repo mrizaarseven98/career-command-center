@@ -30,7 +30,7 @@ Move the app to `/Applications` or `~/Applications`. Control-click `Career Comma
 
 ### Run Search does not start
 
-Open **Settings > Integration** and confirm the intended assistant is selected and shown as available. Codex requires the ChatGPT desktop app or Codex CLI. Claude requires the Claude Code CLI. A successful start replaces **Run Search** with **Stop Search** and exposes **Run Log** under Automation.
+Open **Settings > Integration** and confirm the intended assistant is selected and shown as available. Codex requires the ChatGPT desktop app or Codex CLI. Claude requires the Claude Code CLI. A successful start replaces **Run Search Now** with **Stop Search** and exposes **Run Log** under Automation.
 
 ### Search finishes with an error
 
@@ -38,7 +38,7 @@ Open **Automation > Run Log**. Authentication, quota, permission, and network fa
 
 ### The schedule shows Sync needed
 
-Schedule settings are not considered active merely because they were saved in the app. Use **Sync in Codex** or the Claude Code sync request and complete the assistant task. The state clears only after the real scheduled task is created, updated, paused, or removed.
+Schedule settings are not considered active merely because they were saved in the app. Use **Open Codex to Register** or the equivalent Claude Code action and complete the assistant task. This registration step opens the assistant because only the assistant can create its own recurring task. **Run Search Now** is separate and executes directly. The app refreshes the sync state when it becomes active and while the Automation screen is open.
 
 ### New opportunities are missing
 
