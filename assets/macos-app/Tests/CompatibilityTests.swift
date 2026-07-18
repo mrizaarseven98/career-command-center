@@ -26,7 +26,7 @@ struct CompatibilityTests {
         let expectedHidden = sourceLeads.filter { ($0["status"] as? String) == "hidden" }.count
 
         let store = AppStore(workspaceOverride: workspace)
-        try expect(store.state.version == 3, "state upgrades to version 3")
+        try expect(store.state.version == 4, "state upgrades to version 4")
         try expect(store.state.leads.count == expectedCount, "lead count survives migration")
         try expect(store.state.leads.filter { $0.status == .archived }.count >= expectedHidden, "hidden records become archived")
         try expect(store.state.leads.contains { $0.string("status") == "hidden" } == false, "no hidden status remains")

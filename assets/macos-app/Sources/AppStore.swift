@@ -6,37 +6,59 @@ import SwiftUI
 final class AppStore: ObservableObject {
     @Published var config = AppConfig()
     @Published var state = CommandCenterState()
-    @Published var selectedSection: AppSection = .toApply
+    @Published var selectedSection: AppSection = .new
     @Published var selectedLeadID: String?
     @Published var searchText = ""
+    @Published var selectedTypeFilter = "All"
+    @Published var dateFilters: [AppSection: LeadDateFilter] = [.new: .sevenDays]
     @Published var documentItems: [DocumentItem] = []
     @Published var questionBank = PersonalizedQuestionBank()
     @Published var selectedQuestionID: String?
     @Published var toastMessage = ""
     @Published var errorMessage = ""
     @Published var isBusy = false
-    @Published var isCodexRunInProgress = false
-    @Published var codexRunLogPath = ""
+    @Published var isSearchRunInProgress = false
+    @Published var searchRunLogPath = ""
+    @Published var softwareUpdateState: SoftwareUpdateState = .idle
 
     private(set) var workspaceURL: URL
     private let fileManager = FileManager.default
     private let encoder: JSONEncoder
     private let decoder = JSONDecoder()
     private let previewMode: Bool
-    private var codexRunProcess: Process?
-    private var codexRunLogHandle: FileHandle?
+    private var searchRunProcess: Process?
+    private var searchRunLogHandle: FileHandle?
+    private var searchRunCancelledByUser = false
 
     static let workspacePreferenceKey = "CareerCommandCenter.workspacePath"
     static let assistantProviderPreferenceKey = "CareerCommandCenter.assistantProvider"
 
     var assistantProvider: String {
-        UserDefaults.standard.string(forKey: Self.assistantProviderPreferenceKey) == "claude"
-            ? "claude"
-            : "codex"
+        let value = UserDefaults.standard.string(forKey: Self.assistantProviderPreferenceKey)
+        return ["codex", "claude"].contains(value ?? "") ? value! : "none"
     }
 
     var assistantDisplayName: String {
-        assistantProvider == "claude" ? "Claude" : "Codex"
+        switch assistantProvider {
+        case "claude": return "Claude Code"
+        case "codex": return "Codex"
+        default: return "your assistant"
+        }
+    }
+
+    var currentAppVersion: String {
+        Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "Development"
+    }
+
+    var availableSoftwareUpdate: SoftwareUpdate? {
+        guard case .available(let update) = softwareUpdateState else { return nil }
+        return update
+    }
+
+    var codexIsAvailable: Bool { codexExecutableURL() != nil }
+
+    var claudeCodeIsAvailable: Bool {
+        claudeExecutableURL() != nil
     }
 
     init(workspaceOverride: URL? = nil, preview: Bool = false) {
@@ -56,6 +78,7 @@ final class AppStore: ObservableObject {
         }
 
         ensureWorkspaceStructure()
+        installBundledWorkspaceSupport()
         loadConfig()
         loadState()
         refreshDocuments()
@@ -78,31 +101,88 @@ final class AppStore: ObservableObject {
         workspaceURL.appendingPathComponent("Evidence_Bank/personalized_questions.json")
     }
 
+    var managedSupportURL: URL {
+        let version = currentAppVersion.replacingOccurrences(of: "/", with: "-")
+        return workspaceURL.appendingPathComponent("System/CareerCommandCenter/\(version)", isDirectory: true)
+    }
+
     var selectedLead: LeadRecord? {
         let source = selectedSection == .deleted ? state.deletedLeads : state.leads
         return source.first { $0.id == selectedLeadID }
     }
 
     var visibleLeads: [LeadRecord] {
+        filteredLeads(for: selectedSection, applySearchAndType: true)
+    }
+
+    var availableOpportunityTypes: [String] {
+        let values = filteredLeads(for: selectedSection, applySearchAndType: false)
+            .map(\.type)
+            .filter { !$0.isEmpty }
+        return Array(Set(values)).sorted { $0.localizedCaseInsensitiveCompare($1) == .orderedAscending }
+    }
+
+    var selectedDateFilter: LeadDateFilter {
+        dateFilters[selectedSection] ?? .all
+    }
+
+    func selectSection(_ section: AppSection) {
+        selectedSection = section
+        searchText = ""
+        selectedTypeFilter = "All"
+        selectedLeadID = visibleLeads.first?.id
+    }
+
+    func setDateFilter(_ filter: LeadDateFilter) {
+        dateFilters[selectedSection] = filter
+        if !visibleLeads.contains(where: { $0.id == selectedLeadID }) {
+            selectedLeadID = visibleLeads.first?.id
+        }
+    }
+
+    func setTypeFilter(_ type: String) {
+        selectedTypeFilter = type
+        if !visibleLeads.contains(where: { $0.id == selectedLeadID }) {
+            selectedLeadID = visibleLeads.first?.id
+        }
+    }
+
+    private func filteredLeads(for section: AppSection, applySearchAndType: Bool) -> [LeadRecord] {
         let source: [LeadRecord]
-        if selectedSection == .deleted {
+        if section == .new {
+            source = state.leads.filter { $0.status == .toApply || $0.status == .monitor }
+        } else if section == .deleted {
             source = state.deletedLeads
-        } else if let status = selectedSection.leadStatus {
+        } else if let status = section.leadStatus {
             source = state.leads.filter { $0.status == status }
         } else {
             source = []
         }
 
-        let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-        let filtered = query.isEmpty ? source : source.filter { lead in
-            ([lead.title, lead.organization, lead.location, lead.type] +
-                lead.summary + lead.requirements + lead.matchStrengths + lead.fitGaps)
-                .joined(separator: " ")
-                .lowercased()
-                .contains(query)
+        let dateFilter = dateFilters[section] ?? .all
+        var filtered = source.filter { dateFilter.includes($0.discoveryDate) }
+
+        if applySearchAndType {
+            if selectedTypeFilter != "All" {
+                filtered = filtered.filter { $0.type == selectedTypeFilter }
+            }
+
+            let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
+            if !query.isEmpty {
+                filtered = filtered.filter { lead in
+                    ([lead.title, lead.organization, lead.location, lead.type] +
+                        lead.summary + lead.requirements + lead.matchStrengths + lead.fitGaps)
+                        .joined(separator: " ")
+                        .lowercased()
+                        .contains(query)
+                }
+            }
         }
 
         return filtered.sorted { lhs, rhs in
+            if lhs.discoveryDate != rhs.discoveryDate {
+                return (lhs.discoveryDate ?? .distantPast) > (rhs.discoveryDate ?? .distantPast)
+            }
             let left = lhs.score ?? -1
             let right = rhs.score ?? -1
             if left != right { return left > right }
@@ -137,6 +217,7 @@ final class AppStore: ObservableObject {
     func count(for section: AppSection) -> Int {
         if section == .deleted { return state.deletedLeads.count }
         if section == .questions { return questionSidebarCount }
+        if section == .new { return filteredLeads(for: .new, applySearchAndType: false).count }
         guard let status = section.leadStatus else { return 0 }
         return state.leads.filter { $0.status == status }.count
     }
@@ -158,6 +239,47 @@ final class AppStore: ObservableObject {
             try atomicWrite(config, to: configURL)
         } catch {
             errorMessage = "Could not save settings: \(error.localizedDescription)"
+        }
+    }
+
+    func setAssistantProvider(_ provider: String) {
+        let normalized = provider == "claude" ? "claude" : "codex"
+        UserDefaults.standard.set(normalized, forKey: Self.assistantProviderPreferenceKey)
+        objectWillChange.send()
+        showToast("Integration set to \(normalized == "claude" ? "Claude Code" : "Codex")")
+    }
+
+    func checkForUpdates(silent: Bool = false) async {
+        guard !previewMode else { return }
+        if case .checking = softwareUpdateState { return }
+        softwareUpdateState = .checking
+        do {
+            let result = try await UpdateService().check(currentVersion: currentAppVersion)
+            if let update = result.update {
+                softwareUpdateState = .available(update)
+                if !silent { showToast("Version \(update.version) is available") }
+            } else {
+                softwareUpdateState = .current(version: currentAppVersion, checkedAt: Date())
+                if !silent { showToast("Career Command Center is up to date") }
+            }
+        } catch {
+            softwareUpdateState = .failed(message: error.localizedDescription, checkedAt: Date())
+            if !silent { showToast("Update check failed") }
+        }
+    }
+
+    func installAvailableUpdate() {
+        guard case .available(let update) = softwareUpdateState else { return }
+        softwareUpdateState = .downloading(version: update.version)
+        Task {
+            do {
+                let staged = try await Task.detached {
+                    try await UpdateService().stage(update)
+                }.value
+                try beginUpdateInstallation(stagedApp: staged, version: update.version)
+            } catch {
+                softwareUpdateState = .failed(message: error.localizedDescription, checkedAt: Date())
+            }
         }
     }
 
@@ -233,6 +355,7 @@ final class AppStore: ObservableObject {
         config.workspacePath = workspaceURL.path
         UserDefaults.standard.set(workspaceURL.path, forKey: Self.workspacePreferenceKey)
         ensureWorkspaceStructure()
+        installBundledWorkspaceSupport()
         loadConfig()
         loadState()
         refreshDocuments()
@@ -495,29 +618,69 @@ final class AppStore: ObservableObject {
     }
 
     func openAssistantRequest(_ text: String) {
-        if assistantProvider == "codex",
-           let url = Self.codexDeepLink(prompt: text, workspace: workspaceURL),
-           NSWorkspace.shared.open(url) {
-            showToast("Opened in Codex. Press Send to continue.")
+        guard assistantProvider != "none" else {
+            errorMessage = "Choose Codex or Claude Code under Settings > Integration first."
             return
         }
 
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(text, forType: .string)
-        showToast("\(assistantDisplayName) request copied. Paste it into a new task.")
+        if assistantProvider == "codex" {
+            if let url = Self.codexDeepLink(prompt: text, workspace: workspaceURL),
+               NSWorkspace.shared.open(url) {
+                showToast("Opened in Codex. Press Send to continue.")
+                return
+            }
+            copyToPasteboard(text)
+            if let app = assistantApplicationURL(provider: "codex") {
+                NSWorkspace.shared.open(app)
+                showToast("Codex opened. Paste the copied request into a new task.")
+            } else {
+                showToast("Codex request copied. Paste it into a new task.")
+            }
+            return
+        }
+
+        copyToPasteboard(text)
+        if let app = assistantApplicationURL(provider: "claude") {
+            NSWorkspace.shared.open(app)
+            showToast("Claude Code opened. Paste the copied request into a new task.")
+        } else {
+            showToast("Claude Code request copied. Paste it into a new task.")
+        }
     }
 
     func runSearchNow() {
-        guard assistantProvider == "codex" else {
-            openAssistantRequest(runSearchRequest())
+        guard assistantProvider != "none" else {
+            errorMessage = "Choose Codex or Claude Code under Settings > Integration first."
             return
         }
-        guard !isCodexRunInProgress else {
-            showToast("A Codex search is already running")
+        guard !isSearchRunInProgress else {
+            showToast("A search is already running")
             return
         }
-        guard let executable = codexExecutableURL() else {
-            errorMessage = "Codex could not be found. Install or update the Codex desktop app, then try again."
+        let executable: URL?
+        let arguments: [String]
+        if assistantProvider == "claude" {
+            executable = claudeExecutableURL()
+            arguments = [
+                "--print",
+                "--permission-mode", "auto",
+                "--effort", "high",
+                "--name", "Career Command Center Search",
+                runSearchRequest()
+            ]
+        } else {
+            executable = codexExecutableURL()
+            arguments = [
+                "--search",
+                "exec",
+                "--skip-git-repo-check",
+                "--sandbox", "workspace-write",
+                "-C", workspaceURL.path,
+                runSearchRequest()
+            ]
+        }
+        guard let executable else {
+            errorMessage = "\(assistantDisplayName) could not be found. Install or update its desktop app or CLI, then try again."
             return
         }
 
@@ -535,55 +698,65 @@ final class AppStore: ObservableObject {
             let process = Process()
             process.executableURL = executable
             process.currentDirectoryURL = workspaceURL
-            process.arguments = [
-                "--search",
-                "exec",
-                "--skip-git-repo-check",
-                "--sandbox", "workspace-write",
-                "-C", workspaceURL.path,
-                runSearchRequest()
-            ]
+            process.arguments = arguments
             process.standardOutput = logHandle
             process.standardError = logHandle
             process.terminationHandler = { [weak self] completedProcess in
                 Task { @MainActor in
-                    self?.finishCodexRun(exitCode: completedProcess.terminationStatus)
+                    self?.finishSearchRun(exitCode: completedProcess.terminationStatus)
                 }
             }
 
-            codexRunProcess = process
-            codexRunLogHandle = logHandle
-            codexRunLogPath = logURL.path
-            isCodexRunInProgress = true
+            searchRunProcess = process
+            searchRunLogHandle = logHandle
+            searchRunLogPath = logURL.path
+            searchRunCancelledByUser = false
+            isSearchRunInProgress = true
             try process.run()
-            showToast("Codex search started")
+            showToast("\(assistantDisplayName) search started")
         } catch {
-            codexRunProcess = nil
-            try? codexRunLogHandle?.close()
-            codexRunLogHandle = nil
-            isCodexRunInProgress = false
-            errorMessage = "Could not start Codex: \(error.localizedDescription)"
+            searchRunProcess = nil
+            try? searchRunLogHandle?.close()
+            searchRunLogHandle = nil
+            isSearchRunInProgress = false
+            errorMessage = "Could not start \(assistantDisplayName): \(error.localizedDescription)"
         }
     }
 
+    func stopSearchRun() {
+        guard let process = searchRunProcess, process.isRunning else {
+            showToast("No search is running")
+            return
+        }
+        searchRunCancelledByUser = true
+        process.terminate()
+        showToast("Stopping \(assistantDisplayName) search")
+    }
+
     func automationSyncRequest() -> String {
-        "Use the Career Command Center plugin to synchronize the real Codex scheduled task with \(configURL.path). Render the current automation specification, create or update the single matching automation when active, pause or remove it when manual mode is selected, and mark the app synchronized only after the Codex automation operation succeeds."
+        let scheduleInstruction = assistantProvider == "claude"
+            ? "Create or update the single matching Claude Code scheduled job using /schedule when active, or pause/remove it when manual mode is selected. If this Claude installation cannot schedule a task with access to the local workspace, explain that exact blocker and leave the schedule unsynchronized."
+            : "Create or update the single matching Codex automation when active, or pause/remove it when manual mode is selected."
+        return "Synchronize the real \(assistantDisplayName) schedule for Career Command Center. Read \(managedSupportURL.appendingPathComponent("WORKFLOW.md").path) and \(configURL.path), then run \(managedSupportURL.appendingPathComponent("scripts/render_automation_spec.py").path) for \(workspaceURL.path). \(scheduleInstruction) Run mark_automation_synced.py only after the real scheduled-task operation succeeds."
     }
 
     func setupCompletionRequest() -> String {
-        "Use the Career Command Center plugin to finish setup for the workspace at \(workspaceURL.path). Audit the imported documents and evidence, create only source-specific follow-up questions, and complete the evidence foundation according to the plugin workflow. Read \(configURL.path). If that configuration requests a recurring schedule and the evidence workflow is ready, create or update the single matching Codex automation and mark it synchronized only after the automation operation succeeds."
+        let scheduleInstruction = assistantProvider == "claude"
+            ? "If it requests a recurring schedule and the evidence workflow is ready, create or update one matching Claude Code scheduled job using /schedule. If local-workspace scheduling is unavailable, leave it unsynchronized and explain the blocker."
+            : "If it requests a recurring schedule and the evidence workflow is ready, create or update one matching Codex automation."
+        return "Finish Career Command Center setup for \(workspaceURL.path). Treat \(managedSupportURL.path) as the workflow root and read its WORKFLOW.md before acting. Audit the imported documents and evidence, create only source-specific follow-up questions, and complete the evidence foundation. Read \(configURL.path). \(scheduleInstruction) Run mark_automation_synced.py only after the real scheduled-task operation succeeds."
     }
 
     func runSearchRequest() -> String {
-        "Use the Career Command Center plugin to run my job and PhD search now using \(configURL.path). Execute the current rendered automation specification, update the app state through state_cli.py, and record the completed run."
+        "Run the Career Command Center job and PhD search for \(workspaceURL.path). Treat \(managedSupportURL.path) as the workflow root, read WORKFLOW.md, and execute the specification produced by scripts/render_automation_spec.py using \(configURL.path). Update app state only through scripts/state_cli.py and record the completed run."
     }
 
     func questionGenerationRequest() -> String {
-        "Audit my Career Command Center CVs, project files, transcripts, and intake answers. Generate only source-specific, high-impact evidence questions in \(questionsURL.path) using the plugin question standard and question_cli.py."
+        "Audit the Career Command Center CVs, project files, transcripts, and intake answers in \(workspaceURL.path). Read \(managedSupportURL.appendingPathComponent("WORKFLOW.md").path) and generate only source-specific, high-impact evidence questions in \(questionsURL.path) using references/PERSONALIZED_QUESTION_STANDARD.md and scripts/question_cli.py from that workflow root."
     }
 
     func questionReviewRequest() -> String {
-        "Review my answered Career Command Center evidence questions in \(questionsURL.path). Update the verified evidence ledger and approved evidence, resolve each reviewed response through question_cli.py, and generate only necessary cited follow-ups."
+        "Review the answered Career Command Center evidence questions in \(questionsURL.path). Read \(managedSupportURL.appendingPathComponent("WORKFLOW.md").path), update the verified evidence ledger and approved evidence, resolve each response through scripts/question_cli.py, and generate only necessary cited follow-ups."
     }
 
     func showToast(_ message: String) {
@@ -612,26 +785,130 @@ final class AppStore: ObservableObject {
         candidates += [
             URL(fileURLWithPath: "/Applications/ChatGPT.app/Contents/Resources/codex"),
             fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications/ChatGPT.app/Contents/Resources/codex"),
+            URL(fileURLWithPath: "/Applications/Codex.app/Contents/Resources/codex"),
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications/Codex.app/Contents/Resources/codex"),
             fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/codex"),
             URL(fileURLWithPath: "/opt/homebrew/bin/codex"),
             URL(fileURLWithPath: "/usr/local/bin/codex")
         ]
-        return candidates.first { fileManager.isExecutableFile(atPath: $0.path) }
+        return discoverExecutable(named: "codex", candidates: candidates)
     }
 
-    private func finishCodexRun(exitCode: Int32) {
-        try? codexRunLogHandle?.close()
-        codexRunLogHandle = nil
-        codexRunProcess = nil
-        isCodexRunInProgress = false
+    private func claudeExecutableURL() -> URL? {
+        var candidates: [URL] = []
+        if let override = ProcessInfo.processInfo.environment["CAREER_COMMAND_CENTER_CLAUDE_EXECUTABLE"],
+           !override.isEmpty {
+            candidates.append(URL(fileURLWithPath: override))
+        }
+        candidates += [
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".claude/local/claude"),
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent(".local/bin/claude"),
+            URL(fileURLWithPath: "/opt/homebrew/bin/claude"),
+            URL(fileURLWithPath: "/usr/local/bin/claude")
+        ]
+        return discoverExecutable(named: "claude", candidates: candidates)
+    }
+
+    private func discoverExecutable(named name: String, candidates: [URL]) -> URL? {
+        let home = fileManager.homeDirectoryForCurrentUser
+        var expanded = candidates
+        for directory in [
+            ".npm-global/bin",
+            ".volta/bin",
+            ".asdf/shims",
+            ".local/share/mise/shims",
+            ".bun/bin",
+            ".fnm/current/bin"
+        ] {
+            expanded.append(home.appendingPathComponent(directory).appendingPathComponent(name))
+        }
+        if let path = ProcessInfo.processInfo.environment["PATH"] {
+            expanded += path.split(separator: ":").map {
+                URL(fileURLWithPath: String($0), isDirectory: true).appendingPathComponent(name)
+            }
+        }
+        let nvmRoot = home.appendingPathComponent(".nvm/versions/node", isDirectory: true)
+        if let versions = try? fileManager.contentsOfDirectory(
+            at: nvmRoot,
+            includingPropertiesForKeys: [.isDirectoryKey],
+            options: [.skipsHiddenFiles]
+        ) {
+            expanded += versions.map { $0.appendingPathComponent("bin").appendingPathComponent(name) }
+        }
+
+        var seen = Set<String>()
+        return expanded.first { url in
+            seen.insert(url.standardizedFileURL.path).inserted && fileManager.isExecutableFile(atPath: url.path)
+        }
+    }
+
+    private func assistantApplicationURL(provider: String) -> URL? {
+        let names = provider == "codex" ? ["Codex.app", "ChatGPT.app"] : ["Claude.app"]
+        let roots = [
+            URL(fileURLWithPath: "/Applications", isDirectory: true),
+            fileManager.homeDirectoryForCurrentUser.appendingPathComponent("Applications", isDirectory: true)
+        ]
+        for root in roots {
+            for name in names {
+                let candidate = root.appendingPathComponent(name, isDirectory: true)
+                if fileManager.fileExists(atPath: candidate.path) { return candidate }
+            }
+        }
+        return nil
+    }
+
+    private func copyToPasteboard(_ text: String) {
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(text, forType: .string)
+    }
+
+    private func beginUpdateInstallation(stagedApp: URL, version: String) throws {
+        let destination = Bundle.main.bundleURL.standardizedFileURL
+        guard destination.pathExtension == "app",
+              destination.lastPathComponent == "Career Command Center.app" else {
+            throw UpdateServiceError.invalidBundle("move the app into your Applications folder before updating")
+        }
+        guard !destination.path.contains("/AppTranslocation/") else {
+            throw UpdateServiceError.invalidBundle("move the app into your Applications folder and reopen it before updating")
+        }
+        guard fileManager.isWritableFile(atPath: destination.deletingLastPathComponent().path) else {
+            throw UpdateServiceError.invalidBundle("the Applications folder is not writable by this account")
+        }
+        let helper = Bundle.main.bundleURL
+            .appendingPathComponent("Contents/Helpers/CareerCommandCenterUpdater")
+        guard fileManager.isExecutableFile(atPath: helper.path) else {
+            throw UpdateServiceError.invalidBundle("update helper is missing")
+        }
+
+        let process = Process()
+        process.executableURL = helper
+        process.arguments = [stagedApp.path, destination.path, String(ProcessInfo.processInfo.processIdentifier)]
+        process.standardOutput = FileHandle.nullDevice
+        process.standardError = FileHandle.nullDevice
+        try process.run()
+        softwareUpdateState = .installing(version: version)
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            NSApplication.shared.terminate(nil)
+        }
+    }
+
+    private func finishSearchRun(exitCode: Int32) {
+        let wasCancelled = searchRunCancelledByUser
+        searchRunCancelledByUser = false
+        try? searchRunLogHandle?.close()
+        searchRunLogHandle = nil
+        searchRunProcess = nil
+        isSearchRunInProgress = false
         loadConfig()
         loadState()
         refreshDocuments()
         loadQuestions()
-        if exitCode == 0 {
-            showToast("Codex search completed")
+        if wasCancelled {
+            showToast("\(assistantDisplayName) search stopped")
+        } else if exitCode == 0 {
+            showToast("\(assistantDisplayName) search completed")
         } else {
-            errorMessage = "Codex search stopped with exit code \(exitCode). Open the run log for details."
+            errorMessage = "\(assistantDisplayName) search stopped with exit code \(exitCode). Open the run log for details."
         }
     }
 
@@ -658,7 +935,7 @@ final class AppStore: ObservableObject {
     }
 
     private func saveState() {
-        state.version = max(state.version, 3)
+        state.version = max(state.version, 4)
         state.updatedAt = Self.timestamp()
         do {
             try atomicWrite(state, to: stateURL)
@@ -796,7 +1073,7 @@ final class AppStore: ObservableObject {
     }
 
     private func migrateStateSchema() {
-        var changed = state.version < 3
+        var changed = state.version < 4
         for index in state.leads.indices {
             let old = state.leads[index].string("status")?.lowercased()
             if old == "hidden" || old == "dismissed" {
@@ -811,12 +1088,23 @@ final class AppStore: ObservableObject {
             if migrateAssessment(&state.leads[index]) {
                 changed = true
             }
+            if state.leads[index].string("discovered_at") == nil,
+               !state.leads[index].createdAt.isEmpty {
+                state.leads[index].set("discovered_at", state.leads[index].createdAt)
+                changed = true
+            }
         }
         for index in state.deletedLeads.indices {
             if migrateAssessment(&state.deletedLeads[index]) {
                 changed = true
             }
+            if state.deletedLeads[index].string("discovered_at") == nil,
+               !state.deletedLeads[index].createdAt.isEmpty {
+                state.deletedLeads[index].set("discovered_at", state.deletedLeads[index].createdAt)
+                changed = true
+            }
         }
+        state.version = max(state.version, 4)
         if changed { saveState() }
     }
 
@@ -1006,7 +1294,8 @@ final class AppStore: ObservableObject {
             "Job_Postings",
             "Logs",
             "Projects",
-            "State"
+            "State",
+            "System/CareerCommandCenter"
         ] + DocumentCategory.allCases.map { "Documents/\($0.rawValue)" }
 
         do {
@@ -1018,6 +1307,62 @@ final class AppStore: ObservableObject {
             }
         } catch {
             errorMessage = "Could not prepare workspace: \(error.localizedDescription)"
+        }
+    }
+
+    private func installBundledWorkspaceSupport() {
+        guard !previewMode,
+              let resources = Bundle.main.resourceURL,
+              fileManager.fileExists(atPath: resources.appendingPathComponent("Support").path) else { return }
+        let source = resources.appendingPathComponent("Support", isDirectory: true)
+        do {
+            if !fileManager.fileExists(atPath: managedSupportURL.path) {
+                try fileManager.createDirectory(
+                    at: managedSupportURL.deletingLastPathComponent(),
+                    withIntermediateDirectories: true
+                )
+                try fileManager.copyItem(at: source, to: managedSupportURL)
+            }
+
+            let evidence = workspaceURL.appendingPathComponent("Evidence_Bank", isDirectory: true)
+            for name in [
+                "CV_GENERATION_STANDARD.md",
+                "WORKSPACE_CONTRACT.md",
+                "cv_quality_rules.json",
+                "PERSONALIZED_QUESTION_STANDARD.md"
+            ] {
+                let destination = evidence.appendingPathComponent(name)
+                let bundled = managedSupportURL.appendingPathComponent("references/\(name)")
+                if !fileManager.fileExists(atPath: destination.path),
+                   fileManager.fileExists(atPath: bundled.path) {
+                    try fileManager.copyItem(at: bundled, to: destination)
+                }
+            }
+
+            let approved = evidence.appendingPathComponent("approved_evidence.json")
+            if !fileManager.fileExists(atPath: approved.path) {
+                let payload: [String: Any] = [
+                    "version": 2,
+                    "updated_at": Self.timestamp(),
+                    "strategy_version": "2.0",
+                    "approved_master_cvs": [String: String](),
+                    "role_families": [String: Any](),
+                    "evidence_blocks": [Any]()
+                ]
+                let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
+                try data.write(to: approved, options: .atomic)
+            }
+
+            let ledger = evidence.appendingPathComponent("Verified_Evidence_Ledger.md")
+            if !fileManager.fileExists(atPath: ledger.path) {
+                try "# Verified Evidence Ledger\n\nStatus: Pending evidence audit\n".write(
+                    to: ledger,
+                    atomically: true,
+                    encoding: .utf8
+                )
+            }
+        } catch {
+            errorMessage = "Could not install workspace support files: \(error.localizedDescription)"
         }
     }
 
@@ -1148,6 +1493,11 @@ extension AppStore {
     }
 
     static func previewState() -> CommandCenterState {
+        let formatter = ISO8601DateFormatter()
+        let now = Date()
+        let today = formatter.string(from: now)
+        let yesterday = formatter.string(from: Calendar.current.date(byAdding: .day, value: -1, to: now) ?? now)
+        let fiveDaysAgo = formatter.string(from: Calendar.current.date(byAdding: .day, value: -5, to: now) ?? now)
         let leads = [
             LeadRecord(raw: [
                 "id": .string("preview-1"),
@@ -1158,6 +1508,8 @@ extension AppStore {
                 "score": .integer(94),
                 "tier": .string("A"),
                 "status": .string("to_apply"),
+                "created_at": .string(today),
+                "discovered_at": .string(today),
                 "deadline": .string("28 July 2026"),
                 "match_strengths": .array([
                     .string("Structured validation work aligns with the system-integration responsibilities."),
@@ -1190,6 +1542,8 @@ extension AppStore {
                 "score": .integer(91),
                 "tier": .string("A"),
                 "status": .string("to_apply"),
+                "created_at": .string(yesterday),
+                "discovered_at": .string(yesterday),
                 "match_strengths": .array([
                     .string("Python analysis, statistical modelling, and clear reporting support the core project work.")
                 ]),
@@ -1205,6 +1559,8 @@ extension AppStore {
                 "score": .integer(87),
                 "tier": .string("B"),
                 "status": .string("monitor"),
+                "created_at": .string(fiveDaysAgo),
+                "discovered_at": .string(fiveDaysAgo),
                 "match_strengths": .array([
                     .string("CAD, prototyping, and test planning support the product-development workflow.")
                 ]),
@@ -1239,53 +1595,53 @@ extension AppStore {
             generatedAt: timestamp(),
             questions: [
                 EvidenceQuestion(
-                    id: "logitech-configuration-time-baseline",
+                    id: "test-cycle-time-baseline",
                     priority: .critical,
                     category: .metric,
-                    question: "The workflow report projects a 50% reduction in configuration time. Was that figure measured against a baseline, estimated from the process, or proposed as a target?",
+                    question: "The validation report projects a 35% reduction in test-cycle time. Was that figure measured against a baseline, estimated from the process, or proposed as a target?",
                     whyItMatters: "The classification determines whether the CV can present the figure as a result, an estimate, or a design target.",
                     sourceRefs: [
                         EvidenceQuestionSource(
-                            path: "Projects/Workflow Automation/Final Report.pdf",
-                            label: "Workflow Automation Final Report",
-                            locator: "Discussion, page 18",
-                            context: "The report gives the 50% figure without identifying a measured baseline or validation run."
+                            path: "Projects/Test Automation/Validation Report.pdf",
+                            label: "Test Automation Validation Report",
+                            locator: "Discussion, page 14",
+                            context: "The report gives the 35% figure without identifying a measured baseline or validation run."
                         )
                     ],
                     generatedAt: timestamp()
                 ),
                 EvidenceQuestion(
-                    id: "microfluidics-design-decision",
+                    id: "prototype-fixture-design-decision",
                     priority: .high,
                     category: .outcome,
-                    question: "Which channel or pillar geometry did your final microfluidic analysis support, and what simulation result drove that choice?",
+                    question: "Which fixture geometry did the final prototype comparison support, and what test result drove that choice?",
                     whyItMatters: "A concrete engineering decision would make the project evidence stronger than a description of the modelling workflow alone.",
                     sourceRefs: [
                         EvidenceQuestionSource(
-                            path: "Projects/Microfluidics/Project Report.pdf",
-                            label: "Capillary Microfluidics Project Report",
-                            locator: "Results and conclusion, pages 21-24",
-                            context: "Several geometries are compared, but the report does not clearly state the candidate's final design recommendation."
+                            path: "Projects/Prototype Fixture/Design Review.pdf",
+                            label: "Prototype Fixture Design Review",
+                            locator: "Results and conclusion, pages 16-19",
+                            context: "Several geometries are compared, but the report does not clearly state the candidate's final recommendation."
                         )
                     ],
                     generatedAt: timestamp()
                 ),
                 EvidenceQuestion(
-                    id: "robot-gripper-personal-ownership",
+                    id: "operations-dashboard-personal-ownership",
                     priority: .high,
                     category: .ownership,
-                    question: "For the robotic gripper, which CAD, fabrication, control, and testing tasks did you personally complete?",
+                    question: "For the operations dashboard, which data preparation, implementation, validation, and reporting tasks did you personally complete?",
                     whyItMatters: "The report uses team language, so individual ownership must be separated before project bullets are approved.",
                     sourceRefs: [
                         EvidenceQuestionSource(
-                            path: "Projects/Robotic Gripper/Final Presentation.pdf",
-                            label: "Robotic Gripper Final Presentation",
-                            locator: "Design and testing slides 6-14",
+                            path: "Projects/Operations Dashboard/Final Presentation.pdf",
+                            label: "Operations Dashboard Final Presentation",
+                            locator: "Methods and validation, slides 5-11",
                             context: "The presentation describes team outputs without assigning the main implementation tasks to individual members."
                         )
                     ],
                     status: .answered,
-                    answer: "I designed the finger linkage and servo mount in Fusion 360, prepared the PETG prints, integrated the Arduino servo control, and ran the object-grasp tests. The PMMA frame layout was shared.",
+                    answer: "I cleaned the source data, implemented the transformation pipeline, built the validation checks, and prepared the final reporting view. The initial metric definitions were agreed by the team.",
                     generatedAt: timestamp(),
                     answeredAt: timestamp()
                 )

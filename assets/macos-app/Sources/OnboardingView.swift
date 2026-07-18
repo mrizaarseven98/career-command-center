@@ -130,7 +130,7 @@ struct OnboardingView: View {
         VStack(alignment: .leading, spacing: 24) {
             SectionTitle(
                 title: "Start with a blank search profile",
-                subtitle: "Add your documents and broad answers first. \(store.assistantDisplayName) will audit them and return with source-specific follow-up questions."
+                subtitle: "Add your documents and broad answers first. The selected assistant will audit them and return with specific questions about the source material."
             )
 
             InlineBanner(
@@ -156,6 +156,18 @@ struct OnboardingView: View {
                     Button("Choose Folder") { store.chooseWorkspaceFolder() }
                         .buttonStyle(SecondaryButtonStyle())
                 }
+            }
+
+            PanelSection(title: "Assistant", subtitle: "Choose the local assistant that will perform evidence review, search, and document generation.") {
+                Picker("Assistant", selection: Binding(
+                    get: { store.assistantProvider },
+                    set: { store.setAssistantProvider($0) }
+                )) {
+                    Text("Codex").tag("codex")
+                    Text("Claude Code").tag("claude")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
             }
 
             PanelSection(title: "What setup will ask") {
@@ -224,11 +236,15 @@ struct OnboardingView: View {
 
             PanelSection(title: "Opportunity format", subtitle: "Required. These describe the format of the opportunity, not your profession.") {
                 FlowLayout {
-                    ForEach(["Job", "PhD", "Research assistantship", "Graduate programme"], id: \.self) { option in
+                    ForEach(OpportunityFormatOptions.common, id: \.self) { option in
                         ChoiceChip(title: option, selected: store.config.search.opportunityTypes.contains(option)) {
                             toggle(option, in: &store.config.search.opportunityTypes)
                         }
                     }
+                }
+                LabeledField(label: "Other formats", hint: "optional, comma-separated") {
+                    TextField("Add formats not listed above", text: customOpportunityFormats)
+                        .textFieldStyle(AppTextFieldStyle())
                 }
             }
 
@@ -394,7 +410,7 @@ struct OnboardingView: View {
 
     private var cvStep: some View {
         VStack(alignment: .leading, spacing: 20) {
-            SectionTitle(title: "Set the CV operating standard", subtitle: "The plugin uses an evidence-first master-CV strategy rather than rewriting from old applications.")
+            SectionTitle(title: "Set the CV operating standard", subtitle: "The app uses an evidence-first master-CV strategy rather than rewriting from old applications.")
 
             PanelSection(title: "Strategy v2.0", subtitle: "Applied to every future job-specific CV.") {
                 VStack(spacing: 12) {
@@ -483,8 +499,8 @@ struct OnboardingView: View {
                 kind: .info,
                 title: "One final step in \(store.assistantDisplayName)",
                 message: store.config.automation.frequency == "manual"
-                    ? "Finish Setup opens a prepared task. Press Send once so \(store.assistantDisplayName) can audit the files and place any source-specific follow-ups in Questions. No recurring search will be registered."
-                    : "Finish Setup opens a prepared task. Press Send once so \(store.assistantDisplayName) can audit the evidence, create any source-specific follow-ups, and register the requested schedule when the evidence workflow is ready."
+                    ? finishSetupMessage(manual: true)
+                    : finishSetupMessage(manual: false)
             )
         }
     }
@@ -511,7 +527,7 @@ struct OnboardingView: View {
                 Button {
                     store.finishOnboarding()
                 } label: {
-                    Label("Finish Setup in \(store.assistantDisplayName)", systemImage: "arrow.up.forward.app")
+                    Label(finishButtonTitle, systemImage: store.assistantProvider == "claude" ? "doc.on.clipboard" : "arrow.up.forward.app")
                 }
                 .buttonStyle(PrimaryButtonStyle())
                 .disabled(!canContinue)
@@ -521,6 +537,8 @@ struct OnboardingView: View {
 
     private var canContinue: Bool {
         switch step {
+        case 0:
+            return store.assistantProvider != "none"
         case 1:
             return !store.config.profile.fullName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
         case 4:
@@ -529,6 +547,20 @@ struct OnboardingView: View {
         default:
             return true
         }
+    }
+
+    private var finishButtonTitle: String {
+        store.assistantProvider == "claude" ? "Copy Setup Request" : "Finish Setup in Codex"
+    }
+
+    private func finishSetupMessage(manual: Bool) -> String {
+        let outcome = manual
+            ? "audit the files and place any source-specific follow-ups in Questions. No recurring search will be registered."
+            : "audit the evidence, create any source-specific follow-ups, and register the requested schedule when the evidence workflow is ready."
+        if store.assistantProvider == "claude" {
+            return "Finish Setup opens Claude when available and copies a prepared request. Paste it into a new Claude Code task so Claude can \(outcome)"
+        }
+        return "Finish Setup opens a prepared Codex task. Press Send once so Codex can \(outcome)"
     }
 
     private func onboardingPromise(icon: String, title: String, text: String) -> some View {
@@ -570,6 +602,25 @@ struct OnboardingView: View {
                     .split(separator: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }
+            }
+        )
+    }
+
+    private var customOpportunityFormats: Binding<String> {
+        Binding(
+            get: {
+                store.config.search.opportunityTypes
+                    .filter { !OpportunityFormatOptions.common.contains($0) }
+                    .joined(separator: ", ")
+            },
+            set: { value in
+                let selectedCommon = store.config.search.opportunityTypes
+                    .filter(OpportunityFormatOptions.common.contains)
+                let custom = value.split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty && !OpportunityFormatOptions.common.contains($0) }
+                var seen = Set<String>()
+                store.config.search.opportunityTypes = (selectedCommon + custom).filter { seen.insert($0).inserted }
             }
         )
     }

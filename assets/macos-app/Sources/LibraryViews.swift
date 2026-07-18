@@ -245,32 +245,40 @@ struct AutomationView: View {
             HStack {
                 SectionTitle(title: "Automation", subtitle: "\(store.assistantDisplayName) search schedule and package-generation policy")
                 Spacer()
-                if !store.codexRunLogPath.isEmpty {
+                if !store.searchRunLogPath.isEmpty {
                     Button {
-                        store.open(path: store.codexRunLogPath)
+                        store.open(path: store.searchRunLogPath)
                     } label: {
                         Label("Run Log", systemImage: "doc.text")
                     }
                     .buttonStyle(SecondaryButtonStyle())
                 }
-                Button {
-                    store.runSearchNow()
-                } label: {
-                    Label(store.isCodexRunInProgress ? "Running" : "Run Now", systemImage: store.isCodexRunInProgress ? "hourglass" : "play.fill")
+                if store.isSearchRunInProgress {
+                    Button {
+                        store.stopSearchRun()
+                    } label: {
+                        Label("Stop", systemImage: "stop.fill")
+                    }
+                    .buttonStyle(DangerButtonStyle())
+                } else {
+                    Button {
+                        store.runSearchNow()
+                    } label: {
+                        Label("Run Now", systemImage: "play.fill")
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
                 }
-                .buttonStyle(PrimaryButtonStyle())
-                .disabled(store.isCodexRunInProgress)
             }
             .padding(22)
             Divider()
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    if store.isCodexRunInProgress {
+                    if store.isSearchRunInProgress {
                         InlineBanner(
                             kind: .info,
-                            title: "Codex search is running",
-                            message: "The search is executing in this workspace. Results appear here when Codex records the run."
+                            title: "\(store.assistantDisplayName) search is running",
+                            message: "The search is executing in this workspace. The run log is available above; verified results appear here after the run is recorded. You can stop the process without deleting results already saved."
                         )
                     }
                     if store.config.automation.needsCodexSync {
@@ -443,18 +451,25 @@ private struct AutomationRunStatus: Codable {
 
 struct SettingsView: View {
     @ObservedObject var store: AppStore
-    @State private var tab = "Profile"
+    @State private var tab: String
+
+    init(store: AppStore, initialTab: String = "Profile") {
+        self.store = store
+        _tab = State(initialValue: initialTab)
+    }
 
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                SectionTitle(title: "Settings", subtitle: "Profile, search scope, CV defaults, and workspace")
+                SectionTitle(title: "Settings", subtitle: "Profile, search scope, integration, workspace, and software")
                 Spacer()
-                Button("Save Changes") {
-                    store.saveConfig()
-                    store.showToast("Settings saved")
+                if ["Profile", "Search", "CV"].contains(tab) {
+                    Button("Save Changes") {
+                        store.saveConfig()
+                        store.showToast("Settings saved")
+                    }
+                    .buttonStyle(PrimaryButtonStyle())
                 }
-                .buttonStyle(PrimaryButtonStyle())
             }
             .padding(22)
             Divider()
@@ -464,7 +479,8 @@ struct SettingsView: View {
                     Text("Profile").tag("Profile")
                     Text("Search").tag("Search")
                     Text("CV").tag("CV")
-                    Text("Workspace").tag("Workspace")
+                    Text("Integration").tag("Integration")
+                    Text("App").tag("App")
                 }
                 .pickerStyle(.segmented)
                 .frame(maxWidth: 600)
@@ -487,7 +503,8 @@ struct SettingsView: View {
         switch tab {
         case "Search": searchSettings
         case "CV": cvSettings
-        case "Workspace": workspaceSettings
+        case "Integration": integrationSettings
+        case "App": applicationSettings
         default: profileSettings
         }
     }
@@ -518,12 +535,13 @@ struct SettingsView: View {
             }
             PanelSection(title: "Opportunity types") {
                 FlowLayout {
-                    ForEach(["Job", "PhD", "Research assistantship", "Graduate programme"], id: \.self) { option in
+                    ForEach(OpportunityFormatOptions.common, id: \.self) { option in
                         ChoiceChip(title: option, selected: store.config.search.opportunityTypes.contains(option)) {
                             toggle(option, in: &store.config.search.opportunityTypes)
                         }
                     }
                 }
+                settingsField("Other formats", text: customOpportunityFormats)
             }
             PanelSection(title: "Working model", subtitle: "Leave all unselected if every arrangement is acceptable.") {
                 FlowLayout {
@@ -616,8 +634,53 @@ struct SettingsView: View {
         }
     }
 
-    private var workspaceSettings: some View {
+    private var integrationSettings: some View {
         VStack(alignment: .leading, spacing: 16) {
+            PanelSection(title: "Assistant", subtitle: "This controls search execution and the handoffs opened by the app.") {
+                Picker("Assistant", selection: Binding(
+                    get: { store.assistantProvider },
+                    set: { store.setAssistantProvider($0) }
+                )) {
+                    Text("Codex").tag("codex")
+                    Text("Claude Code").tag("claude")
+                }
+                .pickerStyle(.segmented)
+                .frame(maxWidth: 360)
+            }
+
+            PanelSection(title: "Local runtime") {
+                VStack(spacing: 12) {
+                    integrationStatus(
+                        name: "Codex",
+                        available: store.codexIsAvailable,
+                        detail: store.codexIsAvailable
+                            ? "Run Search can execute directly in the selected workspace."
+                            : "Install the ChatGPT desktop app or Codex CLI before using direct background search."
+                    )
+                    Divider()
+                    integrationStatus(
+                        name: "Claude Code",
+                        available: store.claudeCodeIsAvailable,
+                        detail: store.claudeCodeIsAvailable
+                            ? "Run Search can execute directly in the selected workspace."
+                            : "Install the Claude Code CLI before using direct background search. Setup handoffs can still be copied."
+                    )
+                }
+            }
+
+            InlineBanner(
+                kind: .info,
+                title: store.assistantProvider == "codex" ? "Codex behavior" : "Claude Code behavior",
+                message: store.assistantProvider == "codex"
+                    ? "Run Search executes in the background. Setup, evidence review, and schedule synchronization open a visible Codex task and require one press of Send."
+                    : "Run Search executes through the local Claude Code CLI. Setup, evidence review, and schedule synchronization open Claude when available and copy a prepared request for you to paste."
+            )
+        }
+    }
+
+    private var applicationSettings: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            softwareUpdatePanel
             PanelSection(title: "Workspace folder") {
                 Text(store.workspaceURL.path)
                     .font(.system(size: 12, design: .monospaced))
@@ -646,6 +709,136 @@ struct SettingsView: View {
         }
     }
 
+    private var softwareUpdatePanel: some View {
+        PanelSection(title: "Software update", subtitle: "Checks the latest stable GitHub release. Updates are verified before installation.") {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack(alignment: .top, spacing: 12) {
+                    Image(systemName: updateStatusIcon)
+                        .font(.system(size: 17, weight: .semibold))
+                        .foregroundStyle(updateStatusColor)
+                        .frame(width: 24)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text(updateStatusTitle)
+                            .font(.system(size: 13, weight: .semibold))
+                        Text(updateStatusDetail)
+                            .font(.system(size: 12))
+                            .foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer(minLength: 12)
+                    Text("Installed \(store.currentAppVersion)")
+                        .font(.system(size: 11, weight: .medium, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                }
+
+                if let update = store.availableSoftwareUpdate,
+                   !update.notes.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty {
+                    Text(update.notes)
+                        .font(.system(size: 11))
+                        .foregroundStyle(.secondary)
+                        .lineLimit(4)
+                        .padding(10)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 5))
+                }
+
+                HStack(spacing: 8) {
+                    Button {
+                        Task { await store.checkForUpdates() }
+                    } label: {
+                        Label("Check Now", systemImage: "arrow.clockwise")
+                    }
+                    .buttonStyle(SecondaryButtonStyle())
+                    .disabled(updateOperationInProgress)
+
+                    if let update = store.availableSoftwareUpdate {
+                        Button {
+                            store.installAvailableUpdate()
+                        } label: {
+                            Label("Install \(update.version)", systemImage: "arrow.down.app.fill")
+                        }
+                        .buttonStyle(PrimaryButtonStyle())
+
+                        Button {
+                            store.openWeb(update.releasePageURL.absoluteString)
+                        } label: {
+                            Label("Release Notes", systemImage: "arrow.up.right.square")
+                        }
+                        .buttonStyle(SecondaryButtonStyle())
+                    }
+                }
+            }
+        }
+    }
+
+    private func integrationStatus(name: String, available: Bool, detail: String) -> some View {
+        HStack(alignment: .top, spacing: 10) {
+            Image(systemName: available ? "checkmark.circle.fill" : "exclamationmark.circle.fill")
+                .foregroundStyle(available ? Color.green : AppTheme.amber)
+                .padding(.top, 1)
+            VStack(alignment: .leading, spacing: 2) {
+                Text(name)
+                    .font(.system(size: 12, weight: .semibold))
+                Text(detail)
+                    .font(.system(size: 11))
+                    .foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+            Spacer(minLength: 0)
+        }
+    }
+
+    private var updateOperationInProgress: Bool {
+        switch store.softwareUpdateState {
+        case .checking, .downloading, .installing: return true
+        default: return false
+        }
+    }
+
+    private var updateStatusTitle: String {
+        switch store.softwareUpdateState {
+        case .idle: return "Not checked"
+        case .checking: return "Checking GitHub"
+        case .current: return "Up to date"
+        case .available(let update): return "Version \(update.version) is available"
+        case .downloading(let version): return "Downloading \(version)"
+        case .installing(let version): return "Installing \(version)"
+        case .failed: return "Update check failed"
+        }
+    }
+
+    private var updateStatusDetail: String {
+        switch store.softwareUpdateState {
+        case .idle: return "The app checks once whenever it opens."
+        case .checking: return "Reading the latest stable release metadata."
+        case .current(_, let checkedAt): return "Last checked \(checkedAt.formatted(date: .abbreviated, time: .shortened))."
+        case .available: return "The archive checksum and app signature will be checked before installation."
+        case .downloading: return "Downloading and verifying the release archive."
+        case .installing: return "The app will close, replace itself, and reopen."
+        case .failed(let message, let checkedAt):
+            return "\(message) Last attempted \(checkedAt.formatted(date: .abbreviated, time: .shortened))."
+        }
+    }
+
+    private var updateStatusIcon: String {
+        switch store.softwareUpdateState {
+        case .current: return "checkmark.circle.fill"
+        case .available: return "arrow.down.circle.fill"
+        case .checking, .downloading, .installing: return "clock.arrow.circlepath"
+        case .failed: return "exclamationmark.triangle.fill"
+        case .idle: return "shippingbox"
+        }
+    }
+
+    private var updateStatusColor: Color {
+        switch store.softwareUpdateState {
+        case .current: return .green
+        case .available: return AppTheme.teal
+        case .failed: return AppTheme.amber
+        default: return AppTheme.muted
+        }
+    }
+
     private func settingsField(_ label: String, text: Binding<String>) -> some View {
         LabeledField(label: label) {
             TextField(label, text: text)
@@ -660,6 +853,25 @@ struct SettingsView: View {
                 values.wrappedValue = value.split(separator: ",")
                     .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
                     .filter { !$0.isEmpty }
+            }
+        )
+    }
+
+    private var customOpportunityFormats: Binding<String> {
+        Binding(
+            get: {
+                store.config.search.opportunityTypes
+                    .filter { !OpportunityFormatOptions.common.contains($0) }
+                    .joined(separator: ", ")
+            },
+            set: { value in
+                let selectedCommon = store.config.search.opportunityTypes
+                    .filter(OpportunityFormatOptions.common.contains)
+                let custom = value.split(separator: ",")
+                    .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+                    .filter { !$0.isEmpty && !OpportunityFormatOptions.common.contains($0) }
+                var seen = Set<String>()
+                store.config.search.opportunityTypes = (selectedCommon + custom).filter { seen.insert($0).inserted }
             }
         )
     }

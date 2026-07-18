@@ -1,0 +1,35 @@
+name: Release macOS App
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: macos-14
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@v4
+      - name: Verify release metadata
+        run: python3 scripts/verify_release.py --tag "$GITHUB_REF_NAME"
+      - name: Test release build
+        run: APP_ARCHITECTURES='arm64 x86_64' scripts/test_macos_app.sh
+      - name: Package verified app
+        run: |
+          mkdir -p dist
+          ditto -c -k --keepParent "build/Career Command Center.app" "dist/Career-Command-Center-macOS.zip"
+          cd dist
+          shasum -a 256 Career-Command-Center-macOS.zip > Career-Command-Center-macOS.zip.sha256
+      - name: Publish GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" \
+            dist/Career-Command-Center-macOS.zip \
+            dist/Career-Command-Center-macOS.zip.sha256 \
+            --verify-tag \
+            --title "Career Command Center ${GITHUB_REF_NAME#v}" \
+            --generate-notes

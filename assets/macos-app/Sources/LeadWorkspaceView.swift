@@ -6,7 +6,7 @@ struct MainView: View {
     var body: some View {
         HStack(spacing: 0) {
             SidebarView(store: store)
-                .frame(width: 224)
+                .frame(width: 232)
             Divider()
             content
         }
@@ -39,10 +39,10 @@ struct MainView: View {
     @ViewBuilder
     private var content: some View {
         switch store.selectedSection {
-        case .toApply, .monitor, .applied, .archive, .deleted:
+        case .new, .toApply, .monitor, .applied, .archive, .deleted:
             HStack(spacing: 0) {
                 OpportunityListView(store: store)
-                    .frame(width: 390)
+                    .frame(width: 420)
                 Divider()
                 LeadDetailView(store: store)
                     .frame(minWidth: 580)
@@ -81,7 +81,8 @@ struct SidebarView: View {
             .padding(.bottom, 20)
             .foregroundStyle(AppTheme.ink)
 
-            sidebarLabel("PIPELINE")
+            sidebarLabel("OPPORTUNITIES")
+            sidebarButton(.new, count: store.count(for: .new))
             sidebarButton(.toApply, count: store.count(for: .toApply))
             sidebarButton(.monitor, count: store.count(for: .monitor))
             sidebarButton(.applied, count: store.count(for: .applied))
@@ -122,16 +123,27 @@ struct SidebarView: View {
                 .padding(.bottom, 10)
             }
 
-            Button {
-                store.runSearchNow()
-            } label: {
-                Label(store.isCodexRunInProgress ? "Search Running" : "Run Search", systemImage: store.isCodexRunInProgress ? "hourglass" : "play.fill")
-                    .frame(maxWidth: .infinity)
+            if store.isSearchRunInProgress {
+                Button {
+                    store.stopSearchRun()
+                } label: {
+                    Label("Stop Search", systemImage: "stop.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(DangerButtonStyle())
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
+            } else {
+                Button {
+                    store.runSearchNow()
+                } label: {
+                    Label("Run Search", systemImage: "play.fill")
+                        .frame(maxWidth: .infinity)
+                }
+                .buttonStyle(PrimaryButtonStyle())
+                .padding(.horizontal, 12)
+                .padding(.bottom, 8)
             }
-            .buttonStyle(PrimaryButtonStyle())
-            .disabled(store.isCodexRunInProgress)
-            .padding(.horizontal, 12)
-            .padding(.bottom, 8)
 
             HStack {
                 Text(store.workspaceURL.lastPathComponent)
@@ -159,10 +171,7 @@ struct SidebarView: View {
     private func sidebarButton(_ section: AppSection, count: Int? = nil) -> some View {
         let selected = store.selectedSection == section
         return Button {
-            store.selectedSection = section
-            if section.leadStatus != nil {
-                store.selectedLeadID = store.visibleLeads.first?.id
-            }
+            store.selectSection(section)
         } label: {
             HStack(spacing: 9) {
                 Image(systemName: section.icon)
@@ -198,42 +207,44 @@ struct SidebarView: View {
 
 struct OpportunityListView: View {
     @ObservedObject var store: AppStore
-    @State private var typeFilter = "All"
 
-    private var leads: [LeadRecord] {
-        guard typeFilter != "All" else { return store.visibleLeads }
-        return store.visibleLeads.filter { $0.type.localizedCaseInsensitiveContains(typeFilter) }
-    }
+    private var leads: [LeadRecord] { store.visibleLeads }
 
     var body: some View {
         VStack(spacing: 0) {
             VStack(alignment: .leading, spacing: 13) {
-                HStack(alignment: .firstTextBaseline) {
-                    SectionTitle(title: store.selectedSection.title)
+                HStack(alignment: .top) {
+                    SectionTitle(title: store.selectedSection.title, subtitle: listSubtitle)
                     Spacer()
                     Text("\(leads.count)")
                         .font(.system(size: 12, weight: .semibold, design: .rounded))
                         .foregroundStyle(.secondary)
                 }
-                HStack(spacing: 8) {
-                    HStack(spacing: 7) {
-                        Image(systemName: "magnifyingglass")
-                            .foregroundStyle(.secondary)
-                        TextField("Search opportunities", text: $store.searchText)
-                            .textFieldStyle(.plain)
-                    }
-                    .padding(.horizontal, 10)
-                    .frame(height: 34)
-                    .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
-                    .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.line))
+                HStack(spacing: 7) {
+                    Image(systemName: "magnifyingglass")
+                        .foregroundStyle(.secondary)
+                    TextField("Search title, employer, location or skill", text: $store.searchText)
+                        .textFieldStyle(.plain)
+                }
+                .padding(.horizontal, 10)
+                .frame(height: 34)
+                .background(Color(nsColor: .textBackgroundColor), in: RoundedRectangle(cornerRadius: 6))
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(AppTheme.line))
 
-                    Picker("Type", selection: $typeFilter) {
-                        Text("All").tag("All")
-                        Text("Jobs").tag("Job")
-                        Text("PhDs").tag("PhD")
+                HStack(spacing: 8) {
+                    dateFilterMenu
+                    typeFilterMenu
+                    Spacer()
+                    if store.selectedDateFilter != .all || store.selectedTypeFilter != "All" || !store.searchText.isEmpty {
+                        Button("Clear") {
+                            store.searchText = ""
+                            store.setTypeFilter("All")
+                            store.setDateFilter(store.selectedSection == .new ? .sevenDays : .all)
+                        }
+                        .buttonStyle(.plain)
+                        .font(.system(size: 11, weight: .medium))
+                        .foregroundStyle(AppTheme.teal)
                     }
-                    .labelsHidden()
-                    .frame(width: 86)
                 }
             }
             .padding(18)
@@ -245,15 +256,19 @@ struct OpportunityListView: View {
                     icon: emptyIcon,
                     title: emptyTitle,
                     message: emptyMessage,
-                    actionTitle: store.selectedSection == .toApply ? "Run Search" : nil,
-                    action: store.selectedSection == .toApply ? { store.runSearchNow() } : nil
+                    actionTitle: [.new, .toApply].contains(store.selectedSection) ? "Run Search" : nil,
+                    action: [.new, .toApply].contains(store.selectedSection) ? { store.runSearchNow() } : nil
                 )
                 Spacer()
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
                         ForEach(leads) { lead in
-                            LeadRow(lead: lead, selected: store.selectedLeadID == lead.id)
+                            LeadRow(
+                                lead: lead,
+                                selected: store.selectedLeadID == lead.id,
+                                showStatus: store.selectedSection == .new
+                            )
                                 .onTapGesture { store.selectedLeadID = lead.id }
                                 .contextMenu {
                                     leadContextMenu(lead)
@@ -267,6 +282,80 @@ struct OpportunityListView: View {
         .background(AppTheme.canvas)
     }
 
+    private var dateFilterMenu: some View {
+        Menu {
+            ForEach(LeadDateFilter.allCases) { filter in
+                Button {
+                    store.setDateFilter(filter)
+                } label: {
+                    if store.selectedDateFilter == filter {
+                        Label(filter.label, systemImage: "checkmark")
+                    } else {
+                        Text(filter.label)
+                    }
+                }
+            }
+        } label: {
+            filterLabel(icon: "calendar", text: store.selectedDateFilter.shortLabel)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Filter by the day the opportunity was first found")
+    }
+
+    private var typeFilterMenu: some View {
+        Menu {
+            Button {
+                store.setTypeFilter("All")
+            } label: {
+                if store.selectedTypeFilter == "All" {
+                    Label("All types", systemImage: "checkmark")
+                } else {
+                    Text("All types")
+                }
+            }
+            if !store.availableOpportunityTypes.isEmpty { Divider() }
+            ForEach(store.availableOpportunityTypes, id: \.self) { type in
+                Button {
+                    store.setTypeFilter(type)
+                } label: {
+                    if store.selectedTypeFilter == type {
+                        Label(type, systemImage: "checkmark")
+                    } else {
+                        Text(type)
+                    }
+                }
+            }
+        } label: {
+            filterLabel(icon: "line.3.horizontal.decrease", text: store.selectedTypeFilter == "All" ? "All types" : store.selectedTypeFilter)
+        }
+        .menuStyle(.borderlessButton)
+        .fixedSize()
+        .help("Filter by opportunity type")
+    }
+
+    private func filterLabel(icon: String, text: String) -> some View {
+        Label(text, systemImage: icon)
+            .font(.system(size: 11, weight: .medium))
+            .foregroundStyle(.primary)
+            .padding(.horizontal, 9)
+            .frame(height: 28)
+            .background(Color.primary.opacity(0.045), in: RoundedRectangle(cornerRadius: 5))
+            .overlay(RoundedRectangle(cornerRadius: 5).stroke(AppTheme.line))
+    }
+
+    private var listSubtitle: String {
+        switch store.selectedSection {
+        case .new: return "Active opportunities by discovery date"
+        case .toApply: return "Verified opportunities awaiting a decision"
+        case .monitor: return "Promising opportunities kept for later"
+        case .applied: return "Applications already submitted"
+        case .archive: return "Inactive postings retained for deduplication"
+        case .deleted: return "Recoverable posting records"
+        default: return ""
+        }
+    }
+
     @ViewBuilder
     private func leadContextMenu(_ lead: LeadRecord) -> some View {
         if store.selectedSection == .deleted {
@@ -275,7 +364,9 @@ struct OpportunityListView: View {
             Button("Restore") { store.restoreArchived(lead.id) }
             Button("Delete", role: .destructive) { store.deleteLead(lead.id) }
         } else {
-            Button("Mark Applied") { store.markApplied(lead.id) }
+            if lead.status != .applied {
+                Button("Mark Applied") { store.markApplied(lead.id) }
+            }
             Button("Save for Later") { store.saveForLater(lead.id) }
             Divider()
             Button("Archive") { store.archive(lead.id) }
@@ -285,6 +376,7 @@ struct OpportunityListView: View {
 
     private var emptyIcon: String {
         switch store.selectedSection {
+        case .new: return "tray.and.arrow.down"
         case .archive: return "archivebox"
         case .deleted: return "trash"
         case .applied: return "checkmark.circle"
@@ -295,6 +387,7 @@ struct OpportunityListView: View {
 
     private var emptyTitle: String {
         switch store.selectedSection {
+        case .new: return "No new opportunities in this period"
         case .archive: return "Archive is empty"
         case .deleted: return "Nothing recently deleted"
         case .applied: return "No applications recorded"
@@ -305,6 +398,7 @@ struct OpportunityListView: View {
 
     private var emptyMessage: String {
         switch store.selectedSection {
+        case .new: return "Change the found-date filter or run a new verified search."
         case .archive: return "Archived opportunities stay out of the active queue and remain protected from rediscovery."
         case .deleted: return "Deleted posting details appear here until they are restored or removed permanently."
         case .applied: return "Mark an opportunity applied when the application has actually been submitted."
@@ -317,6 +411,7 @@ struct OpportunityListView: View {
 struct LeadRow: View {
     let lead: LeadRecord
     let selected: Bool
+    var showStatus = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 9) {
@@ -338,9 +433,22 @@ struct LeadRow: View {
             HStack(spacing: 11) {
                 MetadataLabel(icon: "mappin.and.ellipse", text: lead.location)
                 Spacer(minLength: 0)
+                if showStatus {
+                    Text(lead.status.label)
+                        .font(.system(size: 10, weight: .semibold))
+                        .foregroundStyle(lead.status == .toApply ? AppTheme.teal : AppTheme.amber)
+                }
+            }
+
+            HStack(spacing: 10) {
+                Label(LeadDateFormatting.relativeLabel(for: lead.discoveryDate), systemImage: "clock")
+                    .font(.system(size: 10, weight: .medium))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 0)
                 Text(lead.type)
                     .font(.system(size: 10, weight: .semibold))
                     .foregroundStyle(.secondary)
+                    .lineLimit(1)
             }
 
             if !lead.deadline.isEmpty {
@@ -623,6 +731,7 @@ private struct LeadDetailContent: View {
             if !lead.platformSource.isEmpty {
                 MetadataLabel(icon: "network", text: lead.platformSource.replacingOccurrences(of: "_", with: " "))
             }
+            MetadataLabel(icon: "calendar.badge.clock", text: LeadDateFormatting.fullLabel(for: lead.discoveryDate))
             if !lead.updatedAt.isEmpty {
                 MetadataLabel(icon: "clock", text: "Updated \(lead.updatedAt)")
             }

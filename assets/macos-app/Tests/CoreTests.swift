@@ -12,6 +12,10 @@ struct CoreTests {
         let stateDirectory = root.appendingPathComponent("State", isDirectory: true)
         try fileManager.createDirectory(at: stateDirectory, withIntermediateDirectories: true)
         let stateURL = stateDirectory.appendingPathComponent("cv_command_center_state.json")
+        let now = Date()
+        let yesterday = Calendar.current.date(byAdding: .day, value: -1, to: now)!
+        let tenDaysAgo = Calendar.current.date(byAdding: .day, value: -10, to: now)!
+        let timestamp = ISO8601DateFormatter()
         let fixture: [String: Any] = [
             "version": 1,
             "created_at": "2026-01-01T00:00:00Z",
@@ -24,6 +28,7 @@ struct CoreTests {
                     "title": "Hidden Role",
                     "organization": "Example A",
                     "status": "hidden",
+                    "created_at": timestamp.string(from: tenDaysAgo),
                     "unknown_payload": ["preserve": true]
                 ],
                 [
@@ -31,7 +36,9 @@ struct CoreTests {
                     "source_job_id": "source:manual",
                     "title": "Manual Role",
                     "organization": "Example B",
+                    "type": "PhD",
                     "status": "manual_check",
+                    "created_at": timestamp.string(from: yesterday),
                     "rationale": "Python validation work supports the analysis workflow.",
                     "concerns": "No direct GMP ownership is demonstrated; Upload transcripts and a degree certificate through the portal."
                 ],
@@ -40,7 +47,10 @@ struct CoreTests {
                     "source_job_id": "source:active",
                     "title": "Active Role",
                     "organization": "Example C",
+                    "type": "Job",
                     "status": "to_apply",
+                    "created_at": timestamp.string(from: now),
+                    "updated_at": timestamp.string(from: now.addingTimeInterval(600)),
                     "score": 91
                 ]
             ]
@@ -109,7 +119,7 @@ struct CoreTests {
         try questionData.write(to: questionsURL)
 
         let store = AppStore(workspaceOverride: root)
-        try expect(store.state.version == 3, "state migrates to version 3")
+        try expect(store.state.version == 4, "state migrates to version 4")
         try expect(store.state.leads.first(where: { $0.id == "hidden-lead" })?.status == .archived, "hidden migrates to archive")
         try expect(store.state.leads.first(where: { $0.id == "manual-lead" })?.status == .toApply, "manual check migrates to to_apply")
         try expect(store.state.leads.first(where: { $0.id == "hidden-lead" })?.raw["unknown_payload"] != nil, "unknown lead fields survive decoding")
@@ -119,6 +129,17 @@ struct CoreTests {
         try expect(migratedAssessment?.applicationRequirements.contains(where: { $0.localizedCaseInsensitiveContains("transcript") }) == true, "submission documents become application requirements")
         try expect(migratedAssessment?.fitGaps.contains(where: { $0.localizedCaseInsensitiveContains("transcript") }) == false, "submission documents never remain fit gaps")
         try expect(migratedAssessment?.raw["assessment_schema_version"]?.intValue == 2, "assessment schema is versioned")
+        try expect(store.selectedSection == .new, "the app opens on the new-opportunity inbox")
+        try expect(store.visibleLeads.map(\.id) == ["active-lead", "manual-lead"], "new inbox shows active leads found in the last seven days")
+        try expect(store.state.leads.allSatisfy { !$0.discoveredAt.isEmpty }, "legacy created dates migrate to stable discovery dates")
+        store.setDateFilter(.today)
+        try expect(store.visibleLeads.map(\.id) == ["active-lead"], "today filter uses discovery time rather than update time")
+        store.setDateFilter(.yesterday)
+        try expect(store.visibleLeads.map(\.id) == ["manual-lead"], "yesterday filter selects one discovery day")
+        store.setDateFilter(.sevenDays)
+        store.setTypeFilter("PhD")
+        try expect(store.visibleLeads.map(\.id) == ["manual-lead"], "opportunity type and discovery-date filters compose")
+        store.setTypeFilter("All")
 
         try expect(store.config.search.countries.isEmpty, "fresh setup assumes no country")
         try expect(store.config.search.opportunityTypes.isEmpty, "fresh setup assumes no opportunity format")
@@ -143,33 +164,105 @@ struct CoreTests {
         try expect(handoffItems["prompt"] == handoffPrompt, "Codex handoff preserves the complete prompt")
         try expect(handoffItems["path"] == root.path, "Codex handoff opens the selected workspace")
 
+        let releaseFixture: [String: Any] = [
+            "tag_name": "v4.0.0",
+            "html_url": "https://github.com/example/releases/tag/v4.0.0",
+            "body": "Stable release",
+            "draft": false,
+            "prerelease": false,
+            "published_at": "2026-07-18T00:00:00Z",
+            "assets": [
+                ["name": UpdateService.archiveAssetName, "browser_download_url": "https://example.com/app.zip"],
+                ["name": UpdateService.checksumAssetName, "browser_download_url": "https://example.com/app.zip.sha256"]
+            ]
+        ]
+        let releaseData = try JSONSerialization.data(withJSONObject: releaseFixture)
+        let releaseCheck = try UpdateService.parseRelease(data: releaseData, currentVersion: "3.9.9")
+        try expect(releaseCheck.update?.version == "4.0.0", "stable newer GitHub release becomes an available update")
+        let currentCheck = try UpdateService.parseRelease(data: releaseData, currentVersion: "4.0.0")
+        try expect(currentCheck.update == nil, "current release does not offer a redundant update")
+        try expect(UpdateService.compareVersions("4.0", "4.0.0") == .orderedSame, "semantic version comparison pads missing components")
+        try expect(UpdateService.compareVersions("4.0.1", "4.0.0") == .orderedDescending, "semantic version comparison detects a newer patch")
+        let malformedRelease = releaseFixture.merging(["tag_name": "v4.0.invalid"]) { _, new in new }
+        let malformedData = try JSONSerialization.data(withJSONObject: malformedRelease)
+        do {
+            _ = try UpdateService.parseRelease(data: malformedData, currentVersion: "3.9.9")
+            throw TestFailure(message: "malformed release tags are rejected")
+        } catch let error as UpdateServiceError {
+            try expect(error == .invalidRelease("tag or release URL is malformed"), "malformed release tags are rejected")
+        }
+        try expect(
+            UpdateService.sha256(Data("abc".utf8)) == "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad",
+            "release checksum calculation matches SHA-256"
+        )
+
         let setupRequest = store.setupCompletionRequest()
-        try expect(setupRequest.contains("Career Command Center plugin"), "fresh setup explicitly invokes the installed plugin")
+        try expect(setupRequest.contains("WORKFLOW.md"), "fresh setup uses the workflow bundled with the app")
         try expect(setupRequest.contains(root.path), "fresh setup hands off the selected workspace")
-        try expect(setupRequest.contains("create or update the single matching Codex automation"), "fresh recurring setup requests a real Codex automation")
+        try expect(setupRequest.contains("create or update one matching Codex automation"), "fresh recurring setup requests a real Codex automation")
 
         let syncRequest = store.automationSyncRequest()
         try expect(syncRequest.contains(store.configURL.path), "schedule sync reads the saved app configuration")
-        try expect(syncRequest.contains("create or update the single matching automation"), "schedule sync updates the real registered automation")
-        try expect(syncRequest.contains("only after the Codex automation operation succeeds"), "schedule sync cannot claim success before registration")
+        try expect(
+            syncRequest.localizedCaseInsensitiveContains("create or update the single matching Codex automation"),
+            "schedule sync updates the real registered automation"
+        )
+        try expect(syncRequest.contains("only after the real scheduled-task operation succeeds"), "schedule sync cannot claim success before registration")
 
         let fakeCodex = root.appendingPathComponent("fake-codex")
         try "#!/bin/sh\nprintf '%s\\n' \"$@\"\n".write(to: fakeCodex, atomically: true, encoding: .utf8)
         try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: fakeCodex.path)
+        store.setAssistantProvider("codex")
         setenv("CAREER_COMMAND_CENTER_CODEX_EXECUTABLE", fakeCodex.path, 1)
         store.runSearchNow()
-        try expect(store.isCodexRunInProgress, "Run Now starts a direct Codex process")
+        try expect(store.isSearchRunInProgress, "Run Now starts a direct Codex process")
         let processDeadline = Date().addingTimeInterval(5)
-        while store.isCodexRunInProgress && Date() < processDeadline {
+        while store.isSearchRunInProgress && Date() < processDeadline {
             RunLoop.current.run(until: Date().addingTimeInterval(0.05))
         }
         unsetenv("CAREER_COMMAND_CENTER_CODEX_EXECUTABLE")
-        try expect(!store.isCodexRunInProgress, "Run Now clears its running state when Codex exits")
-        try expect(!store.codexRunLogPath.isEmpty, "Run Now records a visible log path")
-        let codexArguments = try String(contentsOfFile: store.codexRunLogPath, encoding: .utf8)
+        try expect(!store.isSearchRunInProgress, "Run Now clears its running state when Codex exits")
+        try expect(!store.searchRunLogPath.isEmpty, "Run Now records a visible log path")
+        let codexArguments = try String(contentsOfFile: store.searchRunLogPath, encoding: .utf8)
         try expect(codexArguments.contains("--search"), "Run Now enables current web search")
         try expect(codexArguments.contains(root.path), "Run Now executes against the selected workspace")
-        try expect(codexArguments.contains("Career Command Center plugin"), "Run Now explicitly invokes the installed workflow")
+        try expect(codexArguments.contains("WORKFLOW.md"), "Run Now explicitly invokes the app-bundled workflow")
+
+        store.setAssistantProvider("claude")
+        setenv("CAREER_COMMAND_CENTER_CLAUDE_EXECUTABLE", fakeCodex.path, 1)
+        store.runSearchNow()
+        try expect(store.isSearchRunInProgress, "Run Now starts a direct Claude Code process")
+        let claudeDeadline = Date().addingTimeInterval(5)
+        while store.isSearchRunInProgress && Date() < claudeDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        unsetenv("CAREER_COMMAND_CENTER_CLAUDE_EXECUTABLE")
+        try expect(!store.isSearchRunInProgress, "Run Now clears its running state when Claude Code exits")
+        let claudeArguments = try String(contentsOfFile: store.searchRunLogPath, encoding: .utf8)
+        try expect(claudeArguments.contains("--print"), "Claude Code runs non-interactively")
+        try expect(claudeArguments.contains("auto"), "Claude Code uses its guarded automatic permission mode")
+        try expect(claudeArguments.contains("WORKFLOW.md"), "Claude Code uses the app-bundled workflow")
+        try expect(store.automationSyncRequest().contains("/schedule"), "Claude schedule handoff uses Claude Code scheduling")
+
+        let slowCodex = root.appendingPathComponent("slow-codex")
+        try "#!/bin/sh\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n".write(
+            to: slowCodex,
+            atomically: true,
+            encoding: .utf8
+        )
+        try fileManager.setAttributes([.posixPermissions: 0o755], ofItemAtPath: slowCodex.path)
+        store.setAssistantProvider("codex")
+        setenv("CAREER_COMMAND_CENTER_CODEX_EXECUTABLE", slowCodex.path, 1)
+        store.runSearchNow()
+        try expect(store.isSearchRunInProgress, "a long search reports its running state")
+        store.stopSearchRun()
+        let stopDeadline = Date().addingTimeInterval(5)
+        while store.isSearchRunInProgress && Date() < stopDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
+        unsetenv("CAREER_COMMAND_CENTER_CODEX_EXECUTABLE")
+        try expect(!store.isSearchRunInProgress, "Stop Search terminates the active assistant process")
+        try expect(store.errorMessage.isEmpty, "a user-stopped search is not reported as a failure")
 
         let manuallyAddedProject = root.appendingPathComponent("Projects/Manual Import/notes.txt")
         try fileManager.createDirectory(

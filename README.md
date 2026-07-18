@@ -1,97 +1,109 @@
 # Career Command Center
 
-Career Command Center combines a native macOS application with dedicated Codex and Claude Code plugin workflows. The app handles guided setup, documents, personalized evidence questions, preferences, opportunity tracking, archive/delete, and automation settings. The configured assistant handles source auditing, live job and PhD research, master CVs, tailored packages, and recurring runs.
+Career Command Center is a native macOS application for targeted job and PhD research, career-evidence review, CV tailoring, and application tracking. It keeps documents and state in a local workspace chosen by the user. Codex or Claude Code performs the research and document work.
 
-## Requirements
+## Download the App
 
-- macOS 14 or later.
-- Codex or Claude Code with plugin support.
-- A private local folder where the career workspace can live.
+GitHub Releases is the primary installation route.
 
-The bundled app is locally signed rather than App Store notarized. If macOS blocks its first launch after download, Control-click the app in `~/Applications`, choose **Open**, and confirm once.
+1. [Download the latest macOS release](https://github.com/mrizaarseven98/career-command-center/releases/latest/download/Career-Command-Center-macOS.zip).
+2. Open the ZIP and move `Career Command Center.app` to `/Applications` or `~/Applications`.
+3. Control-click the app, choose **Open**, and confirm the first launch.
+4. Choose Codex or Claude Code and complete the seven setup steps.
 
-The installer restores launch permissions that may be removed when the plugin is transferred, then locally re-signs and verifies the copied app before opening it.
+The app is a universal Intel and Apple-silicon build for macOS 14 or later. It is locally signed and verified, but it is not App Store notarized, which is why macOS may require the one-time Control-click launch.
 
-## Install From Codex
+The standalone app includes its workflow standards and state tools. A Codex or Claude plugin is optional.
 
-Install **Career Command Center** from the Codex plugin directory. Start a new Codex task in the project that should hold your career workspace and say:
+## First Setup
+
+Setup starts without a country, profession, seniority, opportunity type, CV language, photograph policy, or recurring schedule.
+
+1. Choose the local workspace and assistant.
+2. Record stable profile facts such as identity, work authorisation, and languages.
+3. Import every useful CV, transcript, certificate, recommendation, work sample, report, and project file.
+4. Answer the background questions about ownership, outcomes, verified numbers, constraints, and claims to avoid.
+5. Set the practical search boundary only after the evidence intake.
+6. Choose the CV standard and country-dependent photograph policy.
+7. Keep searches manual or request a daily or weekly schedule.
+
+With Codex selected, **Finish Setup** opens a visible Codex task with the workspace and request prefilled; press **Send** once. With Claude Code selected, the app opens Claude when available and copies the prepared request for a new task.
+
+The assistant audits the imported material and writes only source-specific follow-up questions to the app. Each question identifies the file, location, and ambiguity that triggered it. Master CVs and recurring schedules remain blocked until material evidence questions are resolved.
+
+## Opportunity Workflow
+
+- **New** is a discovery inbox. It shows active opportunities by the date they were first found and defaults to the last seven days.
+- Every opportunity list can be filtered by **Today**, **Yesterday**, **3 days**, **7 days**, **30 days**, or **Any date**, together with opportunity type and text search.
+- **To Apply**, **Saved**, and **Applied** are lifecycle queues.
+- **Archive** is reversible and prevents rediscovery.
+- **Recently Deleted** is recoverable. Permanent deletion removes posting details but retains a minimal dedupe marker.
+- Application documents and portal requirements are shown as a checklist. They do not reduce the evidence-fit score.
+
+Generated application files are never removed when a posting is archived or deleted.
+
+## Assistant Integration
+
+### Codex
+
+**Run Search** executes `codex exec` directly in the selected workspace with live web search enabled. The app shows a running state, a readable log, and a Stop control. Setup, evidence review, and schedule synchronization open visible Codex tasks because those operations may require user confirmation.
+
+When a recurring schedule is selected, the setup or sync task creates or updates one Codex automation. The app remains in **Sync needed** until that real automation operation succeeds.
+
+### Claude Code
+
+**Run Search** executes the local Claude Code CLI directly in guarded automatic mode and writes the same visible run log. Setup, evidence review, and schedule synchronization are copied into a new Claude Code task. Recurring schedules use Claude Code `/schedule` when that installation can access the selected local workspace; otherwise the app leaves the schedule unsynchronized and reports the blocker.
+
+## Install Through Codex
+
+The GitHub repository also acts as a Codex plugin marketplace:
+
+```bash
+codex plugin marketplace add mrizaarseven98/career-command-center
+codex plugin add career-command-center@career-command-center-github
+```
+
+Start a new Codex task in the folder that should contain or access the private career workspace and enter:
 
 ```text
 Set up Career Command Center.
 ```
 
-Codex installs and opens the macOS app. Complete the seven setup steps, including the document and project intake. Fresh setup starts blank and asks for evidence before search preferences; it does not guess your profession or enable a recurring schedule. **Finish Setup in Codex** opens a new task with the correct workspace and request prefilled; press **Send** once to continue. You can also return to Codex manually and say:
+Codex installs the same native app and opens setup.
 
-```text
-Finish Career Command Center setup.
-```
-
-Codex then audits the evidence and places source-specific follow-up questions in the app. Each question cites the CV, report, transcript, or intake detail that triggered it. Answer them under **Questions**, then use **Review in Codex**. Codex updates the verified evidence, derives or confirms role families, builds master CVs, and validates the workspace. It registers an automation only after the evidence questions are resolved and you selected a recurring schedule.
-
-## Install From Claude Code
-
-Add this repository as a Claude plugin marketplace, then install the plugin:
+## Install Through Claude Code
 
 ```bash
 claude plugin marketplace add mrizaarseven98/career-command-center
 claude plugin install career-command-center@career-command-center
 ```
 
-Start a new Claude Code session in the folder that should contain or access the private career workspace, then run:
+Start Claude Code in the folder that should contain or access the private career workspace, then run:
 
 ```text
 /career-command-center:setup
 ```
 
-The Claude installer configures the same native app to display Claude-specific handoffs. Other bundled commands are `/career-command-center:audit-evidence`, `/career-command-center:search-now`, and `/career-command-center:sync-schedule`.
+The plugin also provides `/career-command-center:audit-evidence`, `/career-command-center:search-now`, and `/career-command-center:sync-schedule`.
 
-For recurring searches that need local CVs and project files, use a Claude Code Desktop local scheduled task. A cloud routine does not automatically receive private local workspace files, and `/loop` is session-scoped rather than durable.
+## Updates
 
-## Install a Development Build
+The app checks the latest stable GitHub release once when it opens. **Settings > App > Check Now** performs the same check on demand. Installation is offered only when both the app archive and checksum are present. The downloaded checksum, bundle identifier, version, executables, and code signature are verified before replacement. The updater keeps a rollback copy until the new app passes verification.
 
-The source distribution contains a local marketplace manifest at `.agents/plugins/marketplace.json` and the plugin under `plugins/career-command-center`.
+Move the app into `/Applications` or `~/Applications` before using self-update. A translocated copy launched directly from a download folder cannot replace itself.
 
-```bash
-codex plugin marketplace add /absolute/path/to/plugin_marketplace
-codex plugin add career-command-center@career-command-center-local
-```
+## Privacy
 
-## Daily Use
-
-- Open `Career Command Center` from `~/Applications` or Spotlight.
-- Answer cited follow-ups under **Questions** and send completed responses back through the configured assistant's review action.
-- Review verified opportunities under **To Apply**.
-- Use the posting and package buttons from the detail pane.
-- Mark an application **Applied** only after submission.
-- Use **Archive** to remove a role from active queues while keeping it restorable.
-- Use **Delete** to move a posting to Recently Deleted. Permanent deletion removes the details but retains a dedupe marker so the automation cannot add the same role again.
-- Edit countries, role families, job or PhD categories, work arrangement, thresholds, and exclusions under **Settings**.
-- Edit timing, search depth, minimum lead count, and automatic package generation under **Automation**.
-- **Save & Sync in Codex** saves schedule changes and opens the exact synchronization task. Press **Send** once; the app remains in **Sync required** state until Codex successfully creates, updates, pauses, or removes the scheduled task.
-- In Codex mode, **Run Now** starts a background `codex exec` search directly in the selected workspace and exposes its run log in the app. It does not require copying or sending a prompt.
-- Audit, review, and schedule-sync actions open a new Codex task with the correct prompt and workspace prefilled. Codex requires the user to press **Send** once before that task begins. Claude handoffs are copied because Claude Code does not provide the same desktop deep-link interface.
-- When the app shows **Sync needed**, use its sync handoff or ask the configured assistant to synchronize Career Command Center.
-
-## Privacy and Files
-
-The app stores data locally in the workspace selected during setup. It does not upload documents on its own. Codex or Claude accesses workspace files only when it performs the tasks you request. Application packages are never removed when a posting is archived or deleted.
-
-See [PRIVACY.md](PRIVACY.md) for the complete data-handling policy, [TERMS.md](TERMS.md) for terms of use, and [SUPPORT.md](SUPPORT.md) for help.
-
-## Update
-
-Refresh or reinstall the plugin from its configured marketplace, start a new assistant session, and say:
-
-```text
-Update my Career Command Center app.
-```
+There is no Career Command Center account, developer-operated backend, analytics, or telemetry. The app does not upload documents on its own. The configured assistant reads workspace files only when it performs a requested task. Review [PRIVACY.md](PRIVACY.md), [TERMS.md](TERMS.md), and [SUPPORT.md](SUPPORT.md) before using the software.
 
 ## Development
 
-The plugin and macOS app source are available in this repository. Run the plugin tests with:
+Run the complete macOS test gate with:
 
 ```bash
-python3 tests/test_plugin.py
+APP_ARCHITECTURES='arm64 x86_64' scripts/test_macos_app.sh
 ```
+
+It tests workspace migration, discovery-date behavior, lifecycle and dedupe rules, Codex and Claude launch arguments, universal binaries, release extraction, checksum rejection, updater replacement and rollback, signatures, and compatibility fixtures. GitHub Actions runs the same gate before a tagged release is published.
 
 The project is licensed under the MIT License.

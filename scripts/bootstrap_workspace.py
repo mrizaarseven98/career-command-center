@@ -76,7 +76,7 @@ def main() -> int:
         write_json(
             state_path,
             {
-                "version": 3,
+                "version": 4,
                 "created_at": timestamp(),
                 "updated_at": timestamp(),
                 "leads": [],

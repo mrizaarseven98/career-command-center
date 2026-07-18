@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import argparse
+import hashlib
 import json
 import os
 import re
@@ -177,6 +178,27 @@ def normalized_url(value: str) -> str:
     return urlunsplit(("https", host, path, urlencode(identity_query), ""))
 
 
+def stable_lead_id(record: dict) -> str:
+    for field in ("id", "source_job_id"):
+        value = str(record.get(field) or "").strip()
+        if value:
+            return value
+    for field in ("job_url", "apply_url"):
+        value = normalized_url(str(record.get(field) or ""))
+        if value:
+            return "url:" + hashlib.sha256(value.encode("utf-8")).hexdigest()[:20]
+    identity = "|".join(
+        [
+            normalized_text(str(record.get("organization") or record.get("company") or "")),
+            normalized_text(str(record.get("title") or "")),
+            normalized_text(str(record.get("location") or "")),
+        ]
+    )
+    if identity.replace("|", ""):
+        return "role:" + hashlib.sha256(identity.encode("utf-8")).hexdigest()[:20]
+    raise ValueError("lead requires an id, source_job_id, canonical URL, or role identity")
+
+
 def dedupe_keys(record: dict) -> set[str]:
     keys: set[str] = set()
     for field in ("id", "source_job_id"):
@@ -306,10 +328,13 @@ def validate_state(state: dict) -> list[str]:
 def upsert(state_path: Path, candidate: dict) -> dict:
     state = load_json(state_path)
     candidate = dict(candidate)
+    candidate["id"] = stable_lead_id(candidate)
     status = str(candidate.get("status") or "to_apply").lower().replace(" ", "_")
     candidate["status"] = status if status in ALLOWED_STATUSES else "to_apply"
-    candidate.setdefault("created_at", timestamp())
-    candidate["updated_at"] = timestamp()
+    now = timestamp()
+    candidate.setdefault("created_at", now)
+    candidate.setdefault("discovered_at", candidate["created_at"])
+    candidate["updated_at"] = now
     normalize_assessment(candidate)
 
     for record in state.get("deleted_leads", []):
@@ -334,24 +359,27 @@ def upsert(state_path: Path, candidate: dict) -> dict:
                 "status",
                 "user_notes",
                 "created_at",
+                "discovered_at",
                 "applied_at",
                 "archived_at",
             )
             if key in record
         }
+        if record.get("discovered_at") or record.get("created_at"):
+            protected["discovered_at"] = record.get("discovered_at") or record["created_at"]
         merged = dict(record)
         merged.update({key: value for key, value in candidate.items() if value not in (None, "", [])})
         merged.update(protected)
         merged["updated_at"] = timestamp()
         normalize_assessment(merged)
         leads[index] = merged
-        state["version"] = max(int(state.get("version") or 1), 3)
+        state["version"] = max(int(state.get("version") or 1), 4)
         state["updated_at"] = timestamp()
         atomic_write(state_path, state)
         return {"result": "updated", "id": merged.get("id")}
 
     leads.append(candidate)
-    state["version"] = max(int(state.get("version") or 1), 3)
+    state["version"] = max(int(state.get("version") or 1), 4)
     state["updated_at"] = timestamp()
     atomic_write(state_path, state)
     return {"result": "added", "id": candidate.get("id")}
@@ -400,7 +428,7 @@ def consolidate(state_path: Path, keep_id: str, remove_id: str) -> dict:
         if record.get("id") != remove_id
     ]
     normalize_assessment(canonical)
-    state["version"] = max(int(state.get("version") or 1), 3)
+    state["version"] = max(int(state.get("version") or 1), 4)
     state["updated_at"] = timestamp()
     atomic_write(state_path, state)
     return {"result": "consolidated", "kept": keep_id, "removed": remove_id}
@@ -423,7 +451,10 @@ def migrate_assessments(state_path: Path) -> dict:
         for record in state.get(collection, []):
             if normalize_assessment(record):
                 changed += 1
-    state["version"] = max(int(state.get("version") or 1), 3)
+            if not record.get("discovered_at") and record.get("created_at"):
+                record["discovered_at"] = record["created_at"]
+                changed += 1
+    state["version"] = max(int(state.get("version") or 1), 4)
     state["updated_at"] = timestamp()
     atomic_write(state_path, state)
     return {"result": "migrated", "records_changed": changed, "version": state["version"]}

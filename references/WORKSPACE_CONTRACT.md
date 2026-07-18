@@ -34,6 +34,8 @@ Allowed statuses are `to_apply`, `monitor`, `applied`, `archived`, and `deleted`
 
 Unknown fields inside lead records must be preserved when state is updated.
 
+Every newly promoted lead must record `discovered_at` as an ISO 8601 timestamp. Preserve it on later updates. Existing records may fall back to `created_at`; `updated_at` is not a discovery date and must not make an old posting appear newly found.
+
 ## Personalized evidence questions
 
 `personalized_questions.json` uses schema version 1 and must be updated through `scripts/question_cli.py` when the assistant generates or reviews questions. The native app may update only response fields and lifecycle status when the user answers.

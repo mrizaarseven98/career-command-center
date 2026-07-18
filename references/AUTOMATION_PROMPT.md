@@ -3,6 +3,7 @@
 Workspace: `{{WORKSPACE}}`
 Config: `{{CONFIG}}`
 CV standard: `{{STRATEGY}}`
+Workflow root: `{{SYSTEM_ROOT}}`
 
 Read the config, workspace contract, evidence bank, personalized question bank, state, and CV standard before doing anything. Current config overrides older run memory. The CV standard overrides old CVs and job-specific packages.
 
@@ -33,7 +34,7 @@ For every candidate:
 2. Confirm the role is active and the application route works.
 3. Score fit using verified evidence, not keyword count alone. Score candidate-to-role alignment only.
 4. Check `leads`, `deleted_leads`, and `lead_tombstones` using stable source ID, canonical URL, apply URL, organization, and normalized title.
-5. Use `scripts/state_cli.py upsert` to write the lead. Do not edit state with ad hoc string manipulation.
+5. Use `{{STATE_CLI}} upsert` to write the lead. Do not edit state with ad hoc string manipulation.
 
 Never re-add an applied, archived, deleted, or tombstoned posting. Never create duplicate records for the same role across platforms.
 
@@ -80,4 +81,4 @@ Cover letters must be direct, specific, and natural. Avoid generic openings, exa
 
 ## Completion
 
-Use `scripts/state_cli.py record-run` to write `Automation/automation_status.json` with run times, sources checked, leads added, packages created, shortfall, and errors. Keep the user-facing summary concise and list the strongest new leads first.
+Use `{{STATE_CLI}} record-run` to write `Automation/automation_status.json` with run times, sources checked, leads added, packages created, shortfall, and errors. Keep the user-facing summary concise and list the strongest new leads first.

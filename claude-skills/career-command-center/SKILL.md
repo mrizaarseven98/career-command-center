@@ -1,81 +1,89 @@
 ---
 name: career-command-center
-description: Install, set up, open, diagnose, or operate Career Command Center; audit CVs, transcripts, and project evidence; generate cited follow-up questions; build role-family master CVs; research targeted jobs or PhDs; tailor application packages; track application status; or synchronize search scheduling with Claude Code.
-version: 1.4.0
+description: Install, set up, diagnose, or operate Career Command Center; audit career evidence; generate cited follow-up questions; build role-family master CVs; research targeted jobs or PhDs; tailor application packages; track applications; or synchronize recurring searches with Claude Code.
+version: 2.0.0
 ---
 
-# Career Command Center for Claude
+# Career Command Center for Claude Code
 
-Use the native app for user input and application lifecycle management. Use Claude for evidence auditing, live research, document generation, quality review, and explicitly requested scheduled work.
+Use the native app for intake, questions, opportunity review, lifecycle state, and settings. Use Claude Code for evidence auditing, live research, document generation, validation, and explicitly requested scheduling.
 
-All bundled paths must be resolved through `${CLAUDE_PLUGIN_ROOT}`. Never assume where Claude cached the plugin.
+Resolve bundled files through `${CLAUDE_PLUGIN_ROOT}`. Never assume a cache location.
 
 ## First Setup
 
-1. Choose a private workspace. Prefer the current project when the user wants the career workspace there; otherwise use `~/Documents/Career Command Center`.
-2. Initialize and install:
+1. Choose a private workspace. Prefer the active project when the user wants it to contain the career workspace; otherwise use `~/Documents/Career Command Center`.
+2. Initialize and install without replacing existing user data:
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bootstrap_workspace.py" "WORKSPACE"
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/install_app.py" --workspace "WORKSPACE" --assistant-provider claude
 ```
 
-3. Ask the user to complete every app setup step and import all useful CVs, transcripts, certificates, recommendations, reports, and project files. Fresh setup is neutral: do not infer countries, roles, seniority, language, photo policy, or scheduling before reading their evidence and preferences.
-4. When setup is complete, run `doctor.py`, then read the config, intake answers, workspace contract, personalized-question standard, and CV-generation standard.
-5. Audit imported evidence before writing a master CV:
-   - Inventory and extract the relevant source files.
-   - Separate verified facts, estimates, shared work, contradictions, unsupported claims, and unresolved high-impact gaps.
-   - Generate no more than 12 source-specific questions. Every question must cite a workspace-relative file path and useful locator and explain why the answer matters.
-   - Validate and write the queue through `question_cli.py generate`; never edit the question bank with ad hoc string replacement.
-6. Let the user answer in the app. Review `answered` and `unable_to_verify` items against their cited sources, update the verified evidence ledger and `approved_evidence.json`, then record decisions through `question_cli.py review`.
-7. Infer or confirm coherent role families only after the evidence audit. Build role-family master CVs using the bundled CV standard, render them, and inspect every page before registering approved masters.
-8. Run `state_cli.py --workspace "WORKSPACE" migrate-assessments` and `doctor.py "WORKSPACE" --strict`. Resolve blockers before enabling package generation or recurring search.
+3. Ask the user to complete all seven setup steps. Fresh setup is neutral: do not assume a country, profession, role family, seniority, opportunity format, CV language, photograph policy, or recurring schedule.
+4. After setup, read:
+   - `Config/command_center_config.json`
+   - `Evidence_Bank/intake_answers.md`
+   - `${CLAUDE_PLUGIN_ROOT}/references/CV_GENERATION_STANDARD.md`
+   - `${CLAUDE_PLUGIN_ROOT}/references/PERSONALIZED_QUESTION_STANDARD.md`
+   - `${CLAUDE_PLUGIN_ROOT}/references/WORKSPACE_CONTRACT.md`
+5. Inventory and extract relevant CVs, transcripts, certificates, recommendations, work samples, reports, and project files.
+6. Build the verified portion of `Verified_Evidence_Ledger.md` and `approved_evidence.json`. Keep unsupported, contradictory, shared, estimated, and unresolved claims clearly separated.
+7. Generate only unresolved, source-specific, high-impact questions through `question_cli.py generate`. Every question must cite a workspace-relative source path, a useful locator, and the exact ambiguity. Do not repeat generic onboarding questions or ask for information already clear in a source.
+8. If questions need user answers, tell the user they are ready under **Questions** in the app. Stop before final master-CV generation and scheduling.
+9. Review saved answers against each cited source. Update approved evidence only where the response and source support it, then record every decision through `question_cli.py review`.
+10. When no material question remains open or awaiting review, infer role families only if the config permits it, build evidence-supported role-family master CVs, render and inspect every page, and register approved masters through `register_masters.py`.
+11. Run `state_cli.py migrate-assessments` and `doctor.py --strict`. Resolve blockers before package generation or scheduling.
 
 ## Scheduling
 
-Career workspaces contain local private documents, so prefer a Claude Code Desktop local scheduled task when recurring search is requested. Do not silently substitute a cloud routine, because cloud routines do not have the same local-file access. Do not treat `/loop` as durable scheduling; it is session-scoped and recurring loops expire.
+1. Run `render_automation_spec.py WORKSPACE` and read the complete result.
+2. Use one Claude Code `/schedule` job when the result is active. Update the existing matching job instead of creating a duplicate.
+3. The scheduled job must have access to the selected local workspace. If the active Claude surface or plan cannot provide that access, explain the exact limitation and leave the app in **Sync needed** state.
+4. If the result is paused, pause or remove the existing matching job.
+5. Run `mark_automation_synced.py` only after the real scheduled-job operation succeeds. Do not treat saved config as proof that a schedule exists.
 
-1. Render the current specification with `render_automation_spec.py WORKSPACE`.
-2. If the result is `PAUSED`, remove or disable the existing Career Command Center scheduled task when the user asks.
-3. If the result is `ACTIVE`, create or update one Desktop local scheduled task using the rendered prompt and cadence. Never create duplicates.
-4. If this Claude surface cannot create Desktop tasks, give the user the exact rendered prompt and schedule to enter in Desktop. Do not mark synchronization complete until the user confirms the task exists.
-5. After confirmed synchronization, run `mark_automation_synced.py WORKSPACE --automation-id ID`.
+## Run Search Now
 
-## Run a Search Now
-
-Read the current config and execute the rendered automation prompt in the active session. Use live web research because postings expire and requirements change. Verify canonical employer or institution pages and application routes before promoting a lead.
-
-Use `state_cli.py upsert` for promoted leads and `state_cli.py record-run` at completion. Never directly rewrite application state with string manipulation.
+1. Read the current config on every run and execute the complete prompt from `render_automation_spec.py`.
+2. Use live web research. Verify the posting, employer or institution, location, deadline, and working application route on an authoritative source whenever possible.
+3. Check active, applied, archived, recently deleted, and tombstoned records before promotion.
+4. Write promoted leads only through `state_cli.py upsert`. Never create `manual_check`.
+5. Record the completed run through `state_cli.py record-run`, including source coverage, lead count, packages, shortfall, and errors.
 
 ## Lifecycle Rules
 
-- Never rediscover applied, archived, recently deleted, or tombstoned postings.
-- Promote a verified opportunity to the queue or omit it; never create a vague manual-check state.
-- Archive is reversible. Delete remains recoverable until permanent deletion.
-- Never delete generated application files automatically.
-- Fit scores measure evidence alignment. Deadlines, required attachments, and submission logistics are not fit penalties.
+- Preserve the original `discovered_at` when refreshing a lead.
+- Never rediscover applied, archived, deleted, or tombstoned postings.
+- Archive is reversible. Recently Deleted is recoverable. Permanent deletion retains a minimal dedupe marker.
+- Preserve unknown lead fields and generated application files.
+- Store genuine skill or domain gaps in `fit_gaps`.
+- Store language, permit, location, travel, and contract conditions in `eligibility_constraints`.
+- Store transcripts, certificates, references, deadlines, and upload instructions in `application_requirements`; these never reduce the fit score.
 
-## CV Rules
+## CV and Cover-Letter Rules
 
-- Build a verified evidence foundation before tailoring.
-- Start each tailored CV from the closest approved role-family master.
-- Keep fixed facts and core accomplishments stable.
-- Target through evidence selection and ordering, not visible fit commentary.
-- Never fabricate skills, dates, metrics, ownership, publications, language ability, or eligibility.
-- Keep output ATS-readable and visually restrained. Render and inspect every delivered PDF.
-- Record strategy version, base master, and evidence IDs in tailoring notes.
+- Read the complete posting and CV standard before drafting.
+- Start from one approved role-family master, never an old tailored CV or a blank page.
+- Target through evidence selection, order, and truthful terminology. Do not add visible recruiter commentary.
+- Never fabricate dates, tools, metrics, ownership, employment facts, publications, language ability, regulatory exposure, or deployment claims.
+- Keep measured, estimated, proposed, shared, and individually owned work distinct.
+- Use direct, natural cover-letter prose. Avoid generic openings, corporate filler, exaggerated enthusiasm, symmetrical template structure, and contrast formulas.
+- Render and inspect PDF and editable output. A package with an evidence, ATS, duplicate, integrity, or visual blocker is not ready.
 
 ## Privacy and External Actions
 
-- Treat the workspace as private career data. Read only what is needed for the requested workflow.
+- Treat the workspace as private career data. Read only files needed for the requested operation.
 - The app has no developer-operated backend or telemetry.
-- Never submit an application, send a message, contact a recruiter, publish a document, or accept legal terms without the user's explicit instruction for that action.
-- Explain before sending career data to any employer portal, converter, connector, or third-party service.
+- Never submit an application, contact an employer, publish a document, or accept terms without explicit instruction for that action.
+- Explain before sending career data to an employer portal, converter, connector, or third-party service.
 
-## Diagnostics
+## Diagnose or Update
 
 ```bash
 python3 "${CLAUDE_PLUGIN_ROOT}/scripts/doctor.py" "WORKSPACE"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/bootstrap_workspace.py" "WORKSPACE"
+python3 "${CLAUDE_PLUGIN_ROOT}/scripts/install_app.py" --workspace "WORKSPACE" --assistant-provider claude
 ```
 
-For installation problems, read `${CLAUDE_PLUGIN_ROOT}/SUPPORT.md`.
+Never overwrite user documents, evidence, lead state, or generated applications during an update. Read `${CLAUDE_PLUGIN_ROOT}/SUPPORT.md` for installation problems.

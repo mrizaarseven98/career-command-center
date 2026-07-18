@@ -59,11 +59,11 @@ Use `critical` sparingly. The initial audit should normally contain no more than
 
 Good:
 
-> The Logitech report describes a possible 50% reduction in configuration time. Was that figure measured against a baseline, estimated from the workflow, or proposed as a target?
+> The validation report describes a possible 35% reduction in test-cycle time. Was that figure measured against a baseline, estimated from the workflow, or proposed as a target?
 
 Bad:
 
-> Tell me more about your Logitech project and its impact.
+> Tell me more about this project and its impact.
 
 ## Lifecycle
 

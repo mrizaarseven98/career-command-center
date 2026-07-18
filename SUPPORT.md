@@ -1,75 +1,61 @@
 # Support
 
-Career Command Center is supported through GitHub Issues:
+Report reproducible problems through [GitHub Issues](https://github.com/mrizaarseven98/career-command-center/issues). Remove personal paths and career information before posting.
 
-https://github.com/mrizaarseven98/career-command-center/issues
+Include:
 
-Before opening an issue, run this from a Codex or Claude session that has access to your career workspace:
+- macOS version and processor type.
+- Career Command Center version from **Settings > App**.
+- Selected assistant and its version.
+- Exact steps, expected result, and actual result.
+- A diagnostic summary with personal information removed.
+
+Do not attach CVs, transcripts, access tokens, private posting links, or application documents to a public issue.
+
+## Diagnose the Workspace
+
+In a Codex or Claude task with access to the workspace, enter:
 
 ```text
-Diagnose Career Command Center and summarize any blockers without changing my documents.
+Diagnose Career Command Center and summarize blockers without changing my documents.
 ```
 
-The diagnostic checks the workspace structure, configuration, evidence readiness, registered master CVs, lead state, and automation synchronization.
-
-## Include in a Report
-
-- macOS version and Mac processor type.
-- Assistant and surface used, such as Codex desktop or Claude Code CLI.
-- Plugin and app version.
-- The diagnostic summary with personal paths and personal information removed.
-- Exact steps that caused the problem.
-
-Do not attach CVs, transcripts, access tokens, private job-portal links, or other sensitive documents to a public issue.
+The diagnostic checks workspace structure, configuration, evidence readiness, master CV registration, lead state, and schedule synchronization.
 
 ## Common Problems
 
-### The app is blocked on first launch
+### macOS blocks the first launch
 
-The bundled app is locally signed and is not distributed through the Mac App Store. Control-click `Career Command Center.app` in `~/Applications`, choose **Open**, and confirm once.
+Move the app to `/Applications` or `~/Applications`. Control-click `Career Command Center.app`, choose **Open**, and confirm once. The GitHub build is locally signed but not App Store notarized.
 
-### macOS says the app executable is missing
+### Run Search does not start
 
-Install Career Command Center 1.2.1 or later, start a new assistant session, and ask:
+Open **Settings > Integration** and confirm the intended assistant is selected and shown as available. Codex requires the ChatGPT desktop app or Codex CLI. Claude requires the Claude Code CLI. A successful start replaces **Run Search** with **Stop Search** and exposes **Run Log** under Automation.
 
-```text
-Update my Career Command Center app and connect it to this workspace.
-```
+### Search finishes with an error
 
-The installer repairs transfer-sensitive executable permissions and verifies the app before launch. A manual source rebuild should not be needed.
+Open **Automation > Run Log**. Authentication, quota, permission, and network failures are reported there. The app refreshes lead state only after the assistant process exits.
 
-### The app opens the wrong workspace
+### The schedule shows Sync needed
 
-Ask the configured assistant to reinstall the companion app for the current project:
+Schedule settings are not considered active merely because they were saved in the app. Use **Sync in Codex** or the Claude Code sync request and complete the assistant task. The state clears only after the real scheduled task is created, updated, paused, or removed.
 
-```text
-Update my Career Command Center app and connect it to this workspace.
-```
+### New opportunities are missing
 
-### Search settings show Sync needed
-
-Press **Sync in Codex**, or change the schedule and use **Save & Sync in Codex**, to open a task with the workspace and request prefilled. Press **Send** once. This confirmation is required by Codex, and the app must continue to show **Sync required** until the scheduled-task operation succeeds. You can also ask the configured assistant:
-
-```text
-Sync my Career Command Center automation settings.
-```
-
-### Run Now copies a prompt or does not start
-
-Update to Career Command Center 1.4.1 or later. In Codex mode, **Run Now** launches a direct background Codex run and displays **Running** plus a **Run Log** button. Audit, review, and schedule-sync controls open a prefilled Codex task and require one press of **Send**; they should not show the old generic “request copied” message.
+Open **New** and change the found-date filter to **Any date**. New is a time-based view of active To Apply and Saved records; moving a role to Applied or Archive removes it from New. The original discovery timestamp is preserved when a posting is refreshed.
 
 ### Personalized questions do not appear
 
-Confirm that CVs or project files were imported, then use the audit action under **Questions**. If the assistant already completed the audit, press the refresh button in that workspace. Run the diagnostic if the queue still does not load; it validates `Evidence_Bank/personalized_questions.json` and reports malformed or unresolved records.
+Import source documents or project material, then use the audit action under Questions. Refresh the Questions view after the assistant finishes. A saved answer is not approved automatically; use the review action so the cited source can be checked.
 
-### Answers remain ready for review
+### An archived or deleted opportunity returns
 
-Use the review action from the Questions workspace. Saving an answer does not approve it automatically. The assistant checks the cited source, updates verified evidence, and records whether the detail was accepted, excluded, or replaced by a narrower follow-up.
+Run the diagnostic. Archive, Recently Deleted, and permanent-delete tombstones all participate in deduplication. The same canonical posting should not be promoted again.
 
-### A deleted opportunity returns
+### An update cannot install
 
-Run the diagnostic. Permanent deletion should retain a minimal tombstone that prevents rediscovery.
+Confirm the app is in `/Applications` or `~/Applications` and that the folder is writable. Use **Settings > App > Check Now**. Update failures are recorded in `~/Library/Logs/Career Command Center/update.log`. The updater retains or restores the previous app if the replacement fails verification.
 
 ## Security Reports
 
-For a potential security issue, do not post private data or exploit details in a public issue. Open a minimal issue asking for a private reporting channel.
+Do not post private data or exploit details publicly. Open a minimal issue asking for a private reporting channel.

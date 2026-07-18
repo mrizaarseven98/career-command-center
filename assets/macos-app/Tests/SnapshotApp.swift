@@ -11,8 +11,12 @@ struct SnapshotApp {
         let useDarkAppearance = mode.contains("dark")
         let isOnboarding = mode.hasPrefix("onboarding")
         let isCompact = mode.contains("compact")
-        if mode.contains("claude") {
+        if mode.contains("unselected") {
+            UserDefaults.standard.removeObject(forKey: AppStore.assistantProviderPreferenceKey)
+        } else if mode.contains("claude") {
             UserDefaults.standard.set("claude", forKey: AppStore.assistantProviderPreferenceKey)
+        } else {
+            UserDefaults.standard.set("codex", forKey: AppStore.assistantProviderPreferenceKey)
         }
         let size = isOnboarding
             ? CGSize(width: 1280, height: 800)
@@ -35,9 +39,28 @@ struct SnapshotApp {
             store.selectedQuestionID = store.questionsNeedingAnswer.first?.id
         } else if mode.hasPrefix("automation") {
             store.selectedSection = .automation
-            store.isCodexRunInProgress = mode.contains("running")
-            if store.isCodexRunInProgress {
-                store.codexRunLogPath = "/tmp/career-command-center-preview/run-now.log"
+            store.isSearchRunInProgress = mode.contains("running")
+            if store.isSearchRunInProgress {
+                store.searchRunLogPath = "/tmp/career-command-center-preview/run-now.log"
+            }
+        } else if mode.hasPrefix("filtered") {
+            store.selectSection(.new)
+            store.setDateFilter(.today)
+            store.setTypeFilter("Job")
+        } else if mode.hasPrefix("settings") {
+            store.selectedSection = .settings
+            if mode.contains("update") {
+                store.softwareUpdateState = .available(
+                    SoftwareUpdate(
+                        version: "4.1.0",
+                        tagName: "v4.1.0",
+                        releasePageURL: URL(string: "https://github.com/mrizaarseven98/career-command-center/releases/tag/v4.1.0")!,
+                        archiveURL: URL(string: "https://example.com/app.zip")!,
+                        checksumURL: URL(string: "https://example.com/app.zip.sha256")!,
+                        notes: "Improved opportunity filtering, provider integration, and update verification.",
+                        publishedAt: Date()
+                    )
+                )
             }
         }
 
@@ -49,6 +72,18 @@ struct SnapshotApp {
                 .last
                 ?? 0
             root = AnyView(OnboardingView(store: store, initialStep: requestedStep).frame(width: size.width, height: size.height))
+        } else if mode.hasPrefix("settings") {
+            let initialTab = mode.contains("integration") ? "Integration" : "App"
+            root = AnyView(
+                HStack(spacing: 0) {
+                    SidebarView(store: store)
+                        .frame(width: 232)
+                        .frame(maxHeight: .infinity)
+                    Divider()
+                    SettingsView(store: store, initialTab: initialTab).frame(maxHeight: .infinity)
+                }
+                .frame(width: size.width, height: size.height)
+            )
         } else {
             root = AnyView(MainView(store: store).frame(width: size.width, height: size.height))
         }

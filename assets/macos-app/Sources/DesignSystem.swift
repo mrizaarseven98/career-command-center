@@ -140,6 +140,8 @@ struct MetadataLabel: View {
 }
 
 struct PrimaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
@@ -150,10 +152,13 @@ struct PrimaryButtonStyle: ButtonStyle {
                 AppTheme.teal.opacity(configuration.isPressed ? 0.78 : 1),
                 in: RoundedRectangle(cornerRadius: 6)
             )
+            .opacity(isEnabled ? 1 : 0.38)
     }
 }
 
 struct SecondaryButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .medium))
@@ -168,10 +173,13 @@ struct SecondaryButtonStyle: ButtonStyle {
                 RoundedRectangle(cornerRadius: 6)
                     .stroke(AppTheme.line, lineWidth: 1)
             )
+            .opacity(isEnabled ? 1 : 0.38)
     }
 }
 
 struct DangerButtonStyle: ButtonStyle {
+    @Environment(\.isEnabled) private var isEnabled
+
     func makeBody(configuration: Configuration) -> some View {
         configuration.label
             .font(.system(size: 13, weight: .semibold))
@@ -182,6 +190,7 @@ struct DangerButtonStyle: ButtonStyle {
                 AppTheme.coral.opacity(configuration.isPressed ? 0.15 : 0.08),
                 in: RoundedRectangle(cornerRadius: 6)
             )
+            .opacity(isEnabled ? 1 : 0.38)
     }
 }
 
@@ -357,6 +366,7 @@ struct PanelSection<Content: View>: View {
             content
         }
         .padding(16)
+        .frame(maxWidth: .infinity, alignment: .leading)
         .background(AppTheme.panel, in: RoundedRectangle(cornerRadius: 7))
         .overlay(RoundedRectangle(cornerRadius: 7).stroke(AppTheme.line))
     }

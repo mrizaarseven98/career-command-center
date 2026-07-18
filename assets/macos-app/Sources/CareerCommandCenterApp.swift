@@ -23,6 +23,9 @@ struct CareerCommandCenterApp: App {
                 }
             }
             .preferredColorScheme(nil)
+            .task {
+                await store.checkForUpdates(silent: true)
+            }
         }
         .defaultSize(width: 1280, height: 800)
         .commands {

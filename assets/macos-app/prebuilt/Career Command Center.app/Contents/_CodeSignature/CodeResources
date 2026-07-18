@@ -8,14 +8,166 @@
 		<data>
 		EeE56Ay/NG0x7eVTA0Asl4M4ihM=
 		</data>
+		<key>Resources/Support/WORKFLOW.md</key>
+		<data>
+		AUamYLR8HYLmskmheNpX7dAuBSs=
+		</data>
+		<key>Resources/Support/references/APP_WORKFLOW.md</key>
+		<data>
+		AUamYLR8HYLmskmheNpX7dAuBSs=
+		</data>
+		<key>Resources/Support/references/AUTOMATION_PROMPT.md</key>
+		<data>
+		rKFI9uM6plEwtG00pBkTViauZgI=
+		</data>
+		<key>Resources/Support/references/CV_GENERATION_STANDARD.md</key>
+		<data>
+		Yw5UXbuWS7j2RTOVjRr8EAhv41Y=
+		</data>
+		<key>Resources/Support/references/PERSONALIZED_QUESTION_STANDARD.md</key>
+		<data>
+		CeRNHjpWT9hVyBr3QD4FyT56SE0=
+		</data>
+		<key>Resources/Support/references/WORKSPACE_CONTRACT.md</key>
+		<data>
+		g94YrhjeJvl1ILdBeiIbG9Qe3C8=
+		</data>
+		<key>Resources/Support/references/cv_quality_rules.json</key>
+		<data>
+		IOtuFVP5H6udWBr+sTJTgX8djuQ=
+		</data>
+		<key>Resources/Support/scripts/doctor.py</key>
+		<data>
+		Ccm/puwVLYvQvLlB7kSQS7La8oo=
+		</data>
+		<key>Resources/Support/scripts/mark_automation_synced.py</key>
+		<data>
+		JWYudds5DhGVhDDLOJdgJXhkbBc=
+		</data>
+		<key>Resources/Support/scripts/question_cli.py</key>
+		<data>
+		2OTT2MpDyDO3Mb+H72AG4dhu+a8=
+		</data>
+		<key>Resources/Support/scripts/register_masters.py</key>
+		<data>
+		IbLp/Vzfvc6hygDE/6qnHQhxIno=
+		</data>
+		<key>Resources/Support/scripts/render_automation_spec.py</key>
+		<data>
+		kpIyCwUJeRYlk0tMH9Xlnw6ACbw=
+		</data>
+		<key>Resources/Support/scripts/state_cli.py</key>
+		<data>
+		dfd4YpWK/uDLJG1iNr4+Dd9/0CA=
+		</data>
 	</dict>
 	<key>files2</key>
 	<dict>
+		<key>Helpers/CareerCommandCenterUpdater</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			QpNY53p0yt002z/9AkdRBRdRCUs=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"429358e77a74cadd34db3ffd024751051751094b" or cdhash H"22d6e4f9498de9a88ba0e01b52c473dc0621b621"</string>
+		</dict>
 		<key>Resources/AppIcon.icns</key>
 		<dict>
 			<key>hash2</key>
 			<data>
 			y4V72Sh1kJVeTE5QUea6tU+Zb2HU/22FY1HDxmtPkZI=
+			</data>
+		</dict>
+		<key>Resources/Support/WORKFLOW.md</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			bnj8ZHNQnZ6qSNaFkcPBTyIVjidmzp5GYNhJN68daLk=
+			</data>
+		</dict>
+		<key>Resources/Support/references/APP_WORKFLOW.md</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			bnj8ZHNQnZ6qSNaFkcPBTyIVjidmzp5GYNhJN68daLk=
+			</data>
+		</dict>
+		<key>Resources/Support/references/AUTOMATION_PROMPT.md</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			HBUgz3s87nOw8ggXK6Ww2vo5GpZWJABGbEochU6YagU=
+			</data>
+		</dict>
+		<key>Resources/Support/references/CV_GENERATION_STANDARD.md</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			1adMTfWmf/efg2qxGSmu/xJ+Kf6unYBCTYxj5kRjmiw=
+			</data>
+		</dict>
+		<key>Resources/Support/references/PERSONALIZED_QUESTION_STANDARD.md</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			H9I9EJNiXnpQSBtqbsduOq352GznC1IFStic22PjBMw=
+			</data>
+		</dict>
+		<key>Resources/Support/references/WORKSPACE_CONTRACT.md</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			BbCAVZ4UINqji8ejcfFfj4SCbrbxVrJUdeyUN3qiib8=
+			</data>
+		</dict>
+		<key>Resources/Support/references/cv_quality_rules.json</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			pgpky0pBRYO9mzipMt/rHQ8Yg3GH7CeYo2Ca8MKi7Wk=
+			</data>
+		</dict>
+		<key>Resources/Support/scripts/doctor.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			xaEqtE6JBA7yrDsMH2maDOZH4Ir+wvoBxUOS487ZR7I=
+			</data>
+		</dict>
+		<key>Resources/Support/scripts/mark_automation_synced.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			hc7Wj2Nyw3x1FBmjx2Ag6LRRXIS6i7GbkJ5c4IHf5M0=
+			</data>
+		</dict>
+		<key>Resources/Support/scripts/question_cli.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			eVaTtaLaxzX08ew8t+AEfzAi0cPAua2bRvhgRFMBfGk=
+			</data>
+		</dict>
+		<key>Resources/Support/scripts/register_masters.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			026PwoMo2OCBUdX3O1VFiCCSWn59lob8nXc2DpDdtY8=
+			</data>
+		</dict>
+		<key>Resources/Support/scripts/render_automation_spec.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Gu2FP8Gr/s/juXRtB/l98g97YBJMFixfj3phBWkgnTE=
+			</data>
+		</dict>
+		<key>Resources/Support/scripts/state_cli.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			N6WJLSBRfN/afegJwhvhfPRxTUiHwtu12byKHIiFu1w=
 			</data>
 		</dict>
 	</dict>

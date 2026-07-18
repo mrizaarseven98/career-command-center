@@ -10,13 +10,17 @@ import platform
 import shutil
 import stat
 import subprocess
+import uuid
 from pathlib import Path
 
 
 PLUGIN_ROOT = Path(__file__).resolve().parent.parent
 PREBUILT = PLUGIN_ROOT / "assets" / "macos-app" / "prebuilt" / "Career Command Center.app"
 BUILD_SCRIPT = PLUGIN_ROOT / "scripts" / "build_app.sh"
-EXECUTABLE_RELATIVE_PATH = Path("Contents/MacOS/CareerCommandCenter")
+EXECUTABLE_RELATIVE_PATHS = (
+    Path("Contents/MacOS/CareerCommandCenter"),
+    Path("Contents/Helpers/CareerCommandCenterUpdater"),
+)
 
 
 def run_build() -> Path:
@@ -32,17 +36,20 @@ def run_build() -> Path:
 
 def ensure_launchable(app_path: Path) -> bool:
     """Restore transfer-sensitive permissions and refresh the local app signature."""
-    executable = app_path / EXECUTABLE_RELATIVE_PATH
-    if not executable.is_file():
-        raise SystemExit(f"Bundled app executable is missing: {executable}")
+    executables = [app_path / relative for relative in EXECUTABLE_RELATIVE_PATHS]
+    executables.extend((app_path / "Contents/Resources/Support/scripts").glob("*.py"))
+    missing = [path for path in executables[: len(EXECUTABLE_RELATIVE_PATHS)] if not path.is_file()]
+    if missing:
+        raise SystemExit(f"Bundled app executable is missing: {missing[0]}")
 
-    repaired_permissions = not os.access(executable, os.X_OK)
-    executable.chmod(
-        executable.stat().st_mode
-        | stat.S_IXUSR
-        | stat.S_IXGRP
-        | stat.S_IXOTH
-    )
+    repaired_permissions = any(not os.access(path, os.X_OK) for path in executables)
+    for executable in executables:
+        executable.chmod(
+            executable.stat().st_mode
+            | stat.S_IXUSR
+            | stat.S_IXGRP
+            | stat.S_IXOTH
+        )
 
     try:
         subprocess.run(
@@ -88,29 +95,50 @@ def main() -> int:
         raise SystemExit("Career Command Center currently supports macOS 14 or later.")
 
     source = PREBUILT
-    can_use_prebuilt = platform.machine().lower() in {"arm64", "aarch64"}
-    if args.force_rebuild or not can_use_prebuilt or not (source / EXECUTABLE_RELATIVE_PATH).is_file():
+    if args.force_rebuild or not (source / EXECUTABLE_RELATIVE_PATHS[0]).is_file():
         source = run_build()
 
     args.destination.parent.mkdir(parents=True, exist_ok=True)
-    if args.destination.exists():
-        shutil.rmtree(args.destination)
-    shutil.copytree(source, args.destination, symlinks=True)
-    repaired_permissions = ensure_launchable(args.destination)
+    staging = args.destination.parent / f".{args.destination.name}.install-{uuid.uuid4().hex}.app"
+    backup = args.destination.parent / f".{args.destination.name}.backup-{uuid.uuid4().hex}.app"
+    moved_existing = False
+    try:
+        shutil.copytree(source, staging, symlinks=True)
+        repaired_permissions = ensure_launchable(staging)
+        if args.destination.exists():
+            args.destination.rename(backup)
+            moved_existing = True
+        staging.rename(args.destination)
+    except BaseException:
+        if staging.exists():
+            shutil.rmtree(staging, ignore_errors=True)
+        if moved_existing and backup.exists() and not args.destination.exists():
+            backup.rename(args.destination)
+        raise
+    if backup.exists():
+        shutil.rmtree(backup, ignore_errors=True)
 
-    subprocess.run(
-        [
-            "/usr/bin/defaults",
-            "write",
-            "com.careercommandcenter.macos",
-            "CareerCommandCenter.assistantProvider",
-            args.assistant_provider,
-        ],
-        check=True,
-        text=True,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-    )
+    preference_written = True
+    preference_warning = None
+    try:
+        subprocess.run(
+            [
+                "/usr/bin/defaults",
+                "write",
+                "com.careercommandcenter.macos",
+                "CareerCommandCenter.assistantProvider",
+                args.assistant_provider,
+            ],
+            check=True,
+            text=True,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+        )
+    except subprocess.CalledProcessError as error:
+        preference_written = False
+        preference_warning = (
+            error.stderr or error.stdout or "macOS did not accept the assistant preference"
+        ).strip()
 
     command = ["open", str(args.destination)]
     if args.workspace:
@@ -124,6 +152,8 @@ def main() -> int:
                 "installed_app": str(args.destination),
                 "workspace_override": str(args.workspace) if args.workspace else None,
                 "assistant_provider": args.assistant_provider,
+                "assistant_preference_written": preference_written,
+                "assistant_preference_warning": preference_warning,
                 "launched": not args.no_launch,
                 "executable_permission_repaired": repaired_permissions,
             },

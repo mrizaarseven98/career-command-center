@@ -50,6 +50,19 @@ def main() -> int:
     assert len(codex_manifest["interface"]["defaultPrompt"]) <= 3
     assert (PLUGIN_ROOT / "skills/career-command-center/SKILL.md").exists()
 
+    codex_marketplace = json.loads(
+        (PLUGIN_ROOT / ".agents/plugins/marketplace.json").read_text(encoding="utf-8")
+    )
+    assert codex_marketplace["name"] == "career-command-center-github"
+    assert codex_marketplace["plugins"][0]["source"] == {
+        "source": "local",
+        "path": ".",
+    }
+    assert codex_marketplace["plugins"][0]["policy"] == {
+        "installation": "AVAILABLE",
+        "authentication": "ON_INSTALL",
+    }
+
     claude_marketplace = json.loads(
         (PLUGIN_ROOT / ".claude-plugin/marketplace.json").read_text(encoding="utf-8")
     )
@@ -76,7 +89,7 @@ def main() -> int:
         assert (workspace / "Evidence_Bank/Verified_Evidence_Ledger.md").exists()
         assert (workspace / "State/cv_command_center_state.json").exists()
         fresh_state = json.loads((workspace / "State/cv_command_center_state.json").read_text(encoding="utf-8"))
-        assert fresh_state["version"] == 3
+        assert fresh_state["version"] == 4
         fresh_questions = json.loads(
             (workspace / "Evidence_Bank/personalized_questions.json").read_text(encoding="utf-8")
         )
@@ -134,22 +147,51 @@ def main() -> int:
         write_json(lead_path, lead)
         first = json.loads(run("python3", SCRIPTS / "state_cli.py", "--workspace", workspace, "upsert", "--lead-file", lead_path).stdout)
         assert first["result"] == "added"
+        state_path = workspace / "State/cv_command_center_state.json"
+        first_state = json.loads(state_path.read_text(encoding="utf-8"))
+        first_discovered_at = first_state["leads"][0]["discovered_at"]
 
         duplicate = dict(lead)
         duplicate["id"] = "aggregator__duplicate"
         duplicate["job_url"] = "https://example.com/jobs/123?utm_source=board"
+        duplicate["discovered_at"] = "2099-01-01T00:00:00Z"
         write_json(lead_path, duplicate)
         second = json.loads(run("python3", SCRIPTS / "state_cli.py", "--workspace", workspace, "upsert", "--lead-file", lead_path).stdout)
         assert second["result"] == "updated"
 
-        state_path = workspace / "State/cv_command_center_state.json"
         state = json.loads(state_path.read_text(encoding="utf-8"))
         assert len(state["leads"]) == 1
         assessment = state["leads"][0]
+        assert assessment["discovered_at"] == first_discovered_at
         assert assessment["assessment_schema_version"] == 2
         assert any("ISO 13485" in item for item in assessment["fit_gaps"])
         assert any("transcript" in item.lower() for item in assessment["application_requirements"])
         assert not any("transcript" in item.lower() for item in assessment["fit_gaps"])
+
+        generated_id_lead = {
+            "title": "Verification Engineer",
+            "organization": "Fixture Industries",
+            "location": "Bern, Switzerland",
+            "job_url": "https://example.com/jobs/456",
+            "status": "to_apply",
+        }
+        generated_id_path = Path(temporary) / "generated-id-lead.json"
+        write_json(generated_id_path, generated_id_lead)
+        generated_id_result = json.loads(
+            run(
+                "python3",
+                SCRIPTS / "state_cli.py",
+                "--workspace",
+                workspace,
+                "upsert",
+                "--lead-file",
+                generated_id_path,
+            ).stdout
+        )
+        assert generated_id_result["result"] == "added"
+        assert generated_id_result["id"].startswith("url:")
+        state = json.loads(state_path.read_text(encoding="utf-8"))
+        state["leads"] = [item for item in state["leads"] if item["title"] != "Verification Engineer"]
         state["leads"][0]["status"] = "archived"
         write_json(state_path, state)
         third = json.loads(run("python3", SCRIPTS / "state_cli.py", "--workspace", workspace, "upsert", "--lead-file", lead_path).stdout)
@@ -528,11 +570,14 @@ def main() -> int:
             fake_app = fake_plugin / "assets/macos-app/prebuilt/Career Command Center.app"
             shutil.copytree(source_app, fake_app, symlinks=True)
             fake_executable = fake_app / "Contents/MacOS/CareerCommandCenter"
-            fake_executable.chmod(
-                fake_executable.stat().st_mode
-                & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
-            )
+            fake_helper = fake_app / "Contents/Helpers/CareerCommandCenterUpdater"
+            for executable in (fake_executable, fake_helper):
+                executable.chmod(
+                    executable.stat().st_mode
+                    & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
+                )
             assert not os.access(fake_executable, os.X_OK)
+            assert not os.access(fake_helper, os.X_OK)
 
             destination = Path(temporary) / "Applications/Career Command Center.app"
             install_result = json.loads(
@@ -547,9 +592,11 @@ def main() -> int:
                 ).stdout
             )
             installed_executable = destination / "Contents/MacOS/CareerCommandCenter"
+            installed_helper = destination / "Contents/Helpers/CareerCommandCenterUpdater"
             assert install_result["executable_permission_repaired"] is True
             assert install_result["assistant_provider"] == "claude"
             assert os.access(installed_executable, os.X_OK)
+            assert os.access(installed_helper, os.X_OK)
             run("/usr/bin/codesign", "--verify", "--deep", "--strict", destination)
 
     print("Plugin integration tests passed")

@@ -62,6 +62,8 @@ def main() -> int:
         "{{WORKSPACE}}": str(workspace),
         "{{CONFIG}}": str(config_path),
         "{{STRATEGY}}": str(workspace / "Evidence_Bank/CV_GENERATION_STANDARD.md"),
+        "{{SYSTEM_ROOT}}": str(PLUGIN_ROOT),
+        "{{STATE_CLI}}": str(PLUGIN_ROOT / "scripts/state_cli.py"),
         "{{MIN_LEADS}}": str(minimum),
         "{{SEARCH_DEPTH_MINUTES}}": str(depth),
     }

@@ -102,6 +102,119 @@ enum LeadStatus: String, CaseIterable, Identifiable, Codable {
     }
 }
 
+enum LeadDateFilter: String, CaseIterable, Identifiable {
+    case today
+    case yesterday
+    case threeDays
+    case sevenDays
+    case thirtyDays
+    case all
+
+    var id: String { rawValue }
+
+    var label: String {
+        switch self {
+        case .today: return "Today"
+        case .yesterday: return "Yesterday"
+        case .threeDays: return "Last 3 days"
+        case .sevenDays: return "Last 7 days"
+        case .thirtyDays: return "Last 30 days"
+        case .all: return "Any date"
+        }
+    }
+
+    var shortLabel: String {
+        switch self {
+        case .today: return "Today"
+        case .yesterday: return "Yesterday"
+        case .threeDays: return "3 days"
+        case .sevenDays: return "7 days"
+        case .thirtyDays: return "30 days"
+        case .all: return "Any date"
+        }
+    }
+
+    func includes(_ date: Date?, now: Date = Date(), calendar: Calendar = .current) -> Bool {
+        if self == .all { return true }
+        guard let date, date <= now.addingTimeInterval(300) else { return false }
+        if self == .yesterday { return calendar.isDateInYesterday(date) }
+        let startOfToday = calendar.startOfDay(for: now)
+        let daysBack: Int
+        switch self {
+        case .today: daysBack = 0
+        case .yesterday: return false
+        case .threeDays: daysBack = 2
+        case .sevenDays: daysBack = 6
+        case .thirtyDays: daysBack = 29
+        case .all: return true
+        }
+        guard let lowerBound = calendar.date(byAdding: .day, value: -daysBack, to: startOfToday) else {
+            return false
+        }
+        return date >= lowerBound
+    }
+}
+
+enum OpportunityFormatOptions {
+    static let common = [
+        "Job",
+        "Internship",
+        "Graduate programme",
+        "PhD",
+        "Postdoc",
+        "Research assistantship",
+        "Research fellowship"
+    ]
+}
+
+enum LeadDateFormatting {
+    static func parse(_ value: String) -> Date? {
+        let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return nil }
+
+        let fractional = ISO8601DateFormatter()
+        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        if let date = fractional.date(from: cleaned) { return date }
+
+        let internet = ISO8601DateFormatter()
+        internet.formatOptions = [.withInternetDateTime]
+        if let date = internet.date(from: cleaned) { return date }
+
+        for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"] {
+            let formatter = DateFormatter()
+            formatter.locale = Locale(identifier: "en_US_POSIX")
+            formatter.timeZone = .current
+            formatter.dateFormat = format
+            if let date = formatter.date(from: cleaned) { return date }
+        }
+        return nil
+    }
+
+    static func relativeLabel(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> String {
+        guard let date else { return "Date unavailable" }
+        if calendar.isDateInToday(date) { return "Found today" }
+        if calendar.isDateInYesterday(date) { return "Found yesterday" }
+        let start = calendar.startOfDay(for: date)
+        let end = calendar.startOfDay(for: now)
+        let days = max(0, calendar.dateComponents([.day], from: start, to: end).day ?? 0)
+        if days < 31 { return "Found \(days) days ago" }
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .none
+        return "Found \(formatter.string(from: date))"
+    }
+
+    static func fullLabel(for date: Date?) -> String {
+        guard let date else { return "Discovery date unavailable" }
+        let formatter = DateFormatter()
+        formatter.locale = .current
+        formatter.dateStyle = .medium
+        formatter.timeStyle = .short
+        return "Found \(formatter.string(from: date))"
+    }
+}
+
 struct LeadRecord: Codable, Hashable, Identifiable {
     var raw: [String: JSONValue]
 
@@ -118,7 +231,17 @@ struct LeadRecord: Codable, Hashable, Identifiable {
     }
 
     var id: String {
-        string("id") ?? string("source_job_id") ?? UUID().uuidString
+        if let value = string("id"), !value.isEmpty { return value }
+        if let value = string("source_job_id"), !value.isEmpty { return value }
+        if let value = string("job_url"), !value.isEmpty { return value }
+        if let value = string("apply_url"), !value.isEmpty { return value }
+        let fallback = [
+            string("organization") ?? string("company") ?? "unknown-organization",
+            string("title") ?? "untitled-opportunity",
+            string("location") ?? "unknown-location",
+            string("created_at") ?? "unknown-date"
+        ]
+        return fallback.joined(separator: "|")
     }
 
     var title: String { string("title") ?? "Untitled opportunity" }
@@ -139,6 +262,8 @@ struct LeadRecord: Codable, Hashable, Identifiable {
     var sourceJobID: String { string("source_job_id") ?? "" }
     var platformSource: String { string("platform_source") ?? "" }
     var createdAt: String { string("created_at") ?? "" }
+    var discoveredAt: String { string("discovered_at") ?? createdAt }
+    var discoveryDate: Date? { LeadDateFormatting.parse(discoveredAt) }
     var updatedAt: String { string("updated_at") ?? "" }
     var appliedAt: String { string("applied_at") ?? "" }
     var deletedAt: String { string("deleted_at") ?? "" }
@@ -265,7 +390,7 @@ struct CommandCenterState: Codable {
     }
 
     init(
-        version: Int = 3,
+        version: Int = 4,
         createdAt: String = ISO8601DateFormatter().string(from: Date()),
         updatedAt: String = ISO8601DateFormatter().string(from: Date()),
         leads: [LeadRecord] = [],
@@ -399,8 +524,8 @@ struct AutomationPreferences: Codable, Equatable {
         weeklyDay: String = "Monday",
         hour: Int = 8,
         minute: Int = 0,
-        minimumNewLeads: Int = 3,
-        searchDepthMinutes: Int = 90,
+        minimumNewLeads: Int = 5,
+        searchDepthMinutes: Int = 120,
         autoCreateTierAPackages: Bool = false,
         automationID: String = "career-command-center-daily",
         needsCodexSync: Bool = true,
@@ -443,8 +568,8 @@ struct AutomationPreferences: Codable, Equatable {
         weeklyDay = try container.decodeIfPresent(String.self, forKey: .weeklyDay) ?? "Monday"
         hour = try container.decodeIfPresent(Int.self, forKey: .hour) ?? 8
         minute = try container.decodeIfPresent(Int.self, forKey: .minute) ?? 0
-        minimumNewLeads = try container.decodeIfPresent(Int.self, forKey: .minimumNewLeads) ?? 3
-        searchDepthMinutes = try container.decodeIfPresent(Int.self, forKey: .searchDepthMinutes) ?? 90
+        minimumNewLeads = try container.decodeIfPresent(Int.self, forKey: .minimumNewLeads) ?? 5
+        searchDepthMinutes = try container.decodeIfPresent(Int.self, forKey: .searchDepthMinutes) ?? 120
         autoCreateTierAPackages = try container.decodeIfPresent(Bool.self, forKey: .autoCreateTierAPackages) ?? false
         automationID = try container.decodeIfPresent(String.self, forKey: .automationID) ?? "career-command-center-daily"
         needsCodexSync = try container.decodeIfPresent(Bool.self, forKey: .needsCodexSync) ?? true
@@ -779,6 +904,7 @@ enum DocumentCategory: String, CaseIterable, Identifiable, Codable {
 }
 
 enum AppSection: String, CaseIterable, Identifiable {
+    case new
     case toApply
     case monitor
     case applied
@@ -794,6 +920,7 @@ enum AppSection: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
+        case .new: return "New"
         case .toApply: return "To Apply"
         case .monitor: return "Saved"
         case .applied: return "Applied"
@@ -809,6 +936,7 @@ enum AppSection: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
+        case .new: return "tray.and.arrow.down.fill"
         case .toApply: return "tray.full.fill"
         case .monitor: return "bookmark.fill"
         case .applied: return "checkmark.circle.fill"
@@ -830,6 +958,13 @@ enum AppSection: String, CaseIterable, Identifiable {
         case .archive: return .archived
         case .deleted: return .deleted
         default: return nil
+        }
+    }
+
+    var isLeadSection: Bool {
+        switch self {
+        case .new, .toApply, .monitor, .applied, .archive, .deleted: return true
+        default: return false
         }
     }
 }
