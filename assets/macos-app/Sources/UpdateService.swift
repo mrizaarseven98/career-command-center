@@ -228,8 +228,10 @@ struct UpdateService {
         }
         let executable = app.appendingPathComponent("Contents/MacOS/CareerCommandCenter")
         let helper = app.appendingPathComponent("Contents/Helpers/CareerCommandCenterUpdater")
+        let runner = app.appendingPathComponent("Contents/Helpers/CareerCommandCenterRunner")
         guard fileManager.isExecutableFile(atPath: executable.path),
-              fileManager.isExecutableFile(atPath: helper.path) else {
+              fileManager.isExecutableFile(atPath: helper.path),
+              fileManager.isExecutableFile(atPath: runner.path) else {
             throw UpdateServiceError.invalidBundle("required executable is missing")
         }
 

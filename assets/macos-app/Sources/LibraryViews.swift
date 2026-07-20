@@ -243,17 +243,17 @@ struct AutomationView: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack {
-                SectionTitle(title: "Automation", subtitle: "\(store.assistantDisplayName) search schedule and package-generation policy")
+                SectionTitle(title: "Automation", subtitle: "Local background schedule, search status, and package-generation policy")
                 Spacer()
-                if !store.searchRunLogPath.isEmpty {
+                if !store.visibleRunLogPath.isEmpty {
                     Button {
-                        store.open(path: store.searchRunLogPath)
+                        store.open(path: store.visibleRunLogPath)
                     } label: {
                         Label("Run Log", systemImage: "doc.text")
                     }
                     .buttonStyle(SecondaryButtonStyle())
                 }
-                if store.isSearchRunInProgress {
+                if store.isAnySearchRunning {
                     Button {
                         store.stopSearchRun()
                     } label: {
@@ -274,38 +274,59 @@ struct AutomationView: View {
 
             ScrollView {
                 VStack(alignment: .leading, spacing: 18) {
-                    if store.isSearchRunInProgress {
+                    if store.isAnySearchRunning {
                         InlineBanner(
                             kind: .info,
                             title: "\(store.assistantDisplayName) search is running",
-                            message: "The search is executing in this workspace. The run log is available above; verified results appear here after the run is recorded. You can stop the process without deleting results already saved."
+                            message: store.isSearchRunInProgress
+                                ? "The search was started from this app. The run log is available above; verified results appear after the run is recorded."
+                                : "macOS started this search from the saved schedule. The app can be closed while it runs; progress and output are written to the run log."
                         )
                     }
-                    if store.config.automation.needsCodexSync {
-                        HStack(spacing: 12) {
+                    if !store.config.automation.legacyAssistantAutomationID.isEmpty {
+                        VStack(alignment: .leading, spacing: 10) {
                             InlineBanner(
                                 kind: .warning,
-                                title: "Recurring schedule needs registration",
-                                message: "The schedule is saved locally but is not active in \(store.assistantDisplayName). Open the prepared task and press Send once. This is separate from Run Search Now."
+                                title: "Disable the previous Codex schedule",
+                                message: "An older Codex Scheduled task named \(store.config.automation.legacyAssistantAutomationID) may still run separately. Disable it once to prevent duplicate searches; new scheduling is handled directly by this app."
                             )
-                            Button {
-                                store.openAssistantRequest(store.automationSyncRequest())
-                            } label: {
-                                Label("Open \(store.assistantDisplayName) to Register", systemImage: "arrow.up.forward.app")
+                            HStack {
+                                Button("Open Codex Scheduled") { store.openCodexScheduled() }
+                                    .buttonStyle(SecondaryButtonStyle())
+                                Button("I Disabled It") { store.confirmLegacyAssistantScheduleDisabled() }
+                                    .buttonStyle(PrimaryButtonStyle())
                             }
-                            .buttonStyle(PrimaryButtonStyle())
                         }
-                    } else if store.config.automation.enabled && store.config.automation.frequency != "manual" {
+                    }
+                    if store.config.automation.enabled
+                        && store.config.automation.frequency != "manual"
+                        && (store.config.automation.needsCodexSync || !store.localScheduleStatus.loaded) {
+                        InlineBanner(
+                            kind: .warning,
+                            title: "Schedule setup required",
+                            message: "The schedule has changed or is not loaded by macOS. Save it below to register the local \(store.assistantDisplayName) CLI runner."
+                        )
+                    } else if store.recurringScheduleIsActive {
                         InlineBanner(
                             kind: .success,
-                            title: "Schedule synchronized",
-                            message: store.config.automation.lastSyncedAt.isEmpty ? "\(store.assistantDisplayName) reports that the saved schedule is active." : "Last synchronized \(store.config.automation.lastSyncedAt)."
+                            title: "Recurring schedule active",
+                            message: "\(scheduleSummary). macOS runs \(store.assistantDisplayName) directly, even when this app window is closed. The Mac must be on and the user logged in."
                         )
                     } else {
                         InlineBanner(
                             kind: .info,
                             title: "Manual search mode",
                             message: "No recurring search is active. Run a search whenever you want from this screen or the sidebar."
+                        )
+                    }
+
+                    if ["failed", "interrupted"].contains(store.scheduledRunRuntime.state) {
+                        InlineBanner(
+                            kind: .warning,
+                            title: "Last background run needs attention",
+                            message: store.scheduledRunRuntime.message.isEmpty
+                                ? "Open the run log for details."
+                                : store.scheduledRunRuntime.message
                         )
                     }
 
@@ -375,8 +396,8 @@ struct AutomationView: View {
 
                     HStack {
                         Spacer()
-                        Button("Save Schedule & Open \(store.assistantDisplayName)") {
-                            store.saveAutomationAndOpenSync()
+                        Button("Save Schedule") {
+                            store.saveAutomationSchedule()
                         }
                         .buttonStyle(PrimaryButtonStyle())
                     }
@@ -388,12 +409,15 @@ struct AutomationView: View {
         }
         .background(AppTheme.canvas)
         .onAppear {
-            store.refreshAutomationSyncState()
-            runStatus = AutomationRunStatus.load(from: store.automationStatusURL)
+            store.refreshBackgroundAutomationState()
+            refreshRunStatus()
         }
         .onReceive(runRefreshTimer) { _ in
-            store.refreshAutomationSyncState()
-            runStatus = AutomationRunStatus.load(from: store.automationStatusURL)
+            store.refreshScheduledRunRuntime()
+            refreshRunStatus()
+        }
+        .onChange(of: scheduleFingerprint) { _, _ in
+            store.markScheduleDraftDirty()
         }
     }
 
@@ -425,6 +449,31 @@ struct AutomationView: View {
             : String(format: "%.1f hours per run", hours)
     }
 
+    private func refreshRunStatus() {
+        let refreshed = AutomationRunStatus.load(from: store.automationStatusURL)
+        if refreshed != runStatus { runStatus = refreshed }
+    }
+
+    private var scheduleSummary: String {
+        let time = String(format: "%02d:%02d", store.config.automation.hour, store.config.automation.minute)
+        if store.config.automation.frequency == "weekly" {
+            return "Runs every \(store.config.automation.weeklyDay) at \(time)"
+        }
+        return store.config.automation.weekdaysOnly
+            ? "Runs Monday to Friday at \(time)"
+            : "Runs daily at \(time)"
+    }
+
+    private var scheduleFingerprint: String {
+        [
+            store.config.automation.frequency,
+            String(store.config.automation.weekdaysOnly),
+            store.config.automation.weeklyDay,
+            String(store.config.automation.hour),
+            String(store.config.automation.minute)
+        ].joined(separator: "|")
+    }
+
     private var automationFrequency: Binding<String> {
         Binding(
             get: { store.config.automation.frequency },
@@ -436,7 +485,7 @@ struct AutomationView: View {
     }
 }
 
-private struct AutomationRunStatus: Codable {
+private struct AutomationRunStatus: Codable, Equatable {
     var lastRunAt: String
     var leadsAdded: Int
     var packagesCreated: Int
@@ -658,7 +707,7 @@ struct SettingsView: View {
                         name: "Codex",
                         available: store.codexIsAvailable,
                         detail: store.codexIsAvailable
-                            ? "Run Search can execute directly in the selected workspace."
+                            ? "Manual and scheduled searches can execute directly in the selected workspace."
                             : "Install the ChatGPT desktop app or Codex CLI before using direct background search."
                     )
                     Divider()
@@ -666,7 +715,7 @@ struct SettingsView: View {
                         name: "Claude Code",
                         available: store.claudeCodeIsAvailable,
                         detail: store.claudeCodeIsAvailable
-                            ? "Run Search can execute directly in the selected workspace."
+                            ? "Manual and scheduled searches can execute directly in the selected workspace."
                             : "Install the Claude Code CLI before using direct background search. Setup handoffs can still be copied."
                     )
                 }
@@ -676,8 +725,8 @@ struct SettingsView: View {
                 kind: .info,
                 title: store.assistantProvider == "codex" ? "Codex behavior" : "Claude Code behavior",
                 message: store.assistantProvider == "codex"
-                    ? "Run Search executes in the background. Setup, evidence review, and schedule synchronization open a visible Codex task and require one press of Send."
-                    : "Run Search executes through the local Claude Code CLI. Setup, evidence review, and schedule synchronization open Claude when available and copy a prepared request for you to paste."
+                    ? "Manual and recurring searches run through the local Codex CLI. Setup and evidence review open a visible Codex task because they may require your answers."
+                    : "Manual and recurring searches run through the local Claude Code CLI. Setup and evidence review open Claude because they may require your answers."
             )
         }
     }

@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import Foundation
 import SwiftUI
 
@@ -19,6 +20,8 @@ final class AppStore: ObservableObject {
     @Published var isBusy = false
     @Published var isSearchRunInProgress = false
     @Published var searchRunLogPath = ""
+    @Published var localScheduleStatus = LocalScheduleStatus()
+    @Published var scheduledRunRuntime = ScheduledRunRuntime()
     @Published var softwareUpdateState: SoftwareUpdateState = .idle
 
     private(set) var workspaceURL: URL
@@ -29,6 +32,13 @@ final class AppStore: ObservableObject {
     private var searchRunProcess: Process?
     private var searchRunLogHandle: FileHandle?
     private var searchRunCancelledByUser = false
+    private var searchRunLockDescriptor: Int32 = -1
+    private var documentRefreshTask: Task<Void, Never>?
+    private var evidenceSourceRefreshTask: Task<Void, Never>?
+    private var localScheduleStatusRefreshTask: Task<Void, Never>?
+    private var documentRefreshGeneration = 0
+    private var evidenceSourceRefreshGeneration = 0
+    private var questionsFileModificationDate: Date?
 
     static let workspacePreferenceKey = "CareerCommandCenter.workspacePath"
     static let assistantProviderPreferenceKey = "CareerCommandCenter.assistantProvider"
@@ -61,6 +71,22 @@ final class AppStore: ObservableObject {
         claudeExecutableURL() != nil
     }
 
+    var isAnySearchRunning: Bool {
+        isSearchRunInProgress || (scheduledRunRuntime.isRunning && localScheduleStatus.running)
+    }
+
+    var visibleRunLogPath: String {
+        !searchRunLogPath.isEmpty ? searchRunLogPath : scheduledRunRuntime.logPath
+    }
+
+    var recurringScheduleIsActive: Bool {
+        config.automation.enabled
+            && config.automation.frequency != "manual"
+            && config.automation.schedulerBackend == "local"
+            && localScheduleStatus.loaded
+            && !config.automation.needsCodexSync
+    }
+
     init(workspaceOverride: URL? = nil, preview: Bool = false) {
         encoder = JSONEncoder()
         encoder.outputFormatting = [.prettyPrinted, .sortedKeys, .withoutEscapingSlashes]
@@ -81,8 +107,10 @@ final class AppStore: ObservableObject {
         installBundledWorkspaceSupport()
         loadConfig()
         loadState()
-        refreshDocuments()
         loadQuestions()
+        refreshDocuments(force: true)
+        refreshEvidenceSourceFreshness()
+        refreshBackgroundAutomationState()
     }
 
     var stateURL: URL {
@@ -95,6 +123,14 @@ final class AppStore: ObservableObject {
 
     var automationStatusURL: URL {
         workspaceURL.appendingPathComponent("Automation/automation_status.json")
+    }
+
+    var schedulerRuntimeURL: URL {
+        workspaceURL.appendingPathComponent("Automation/scheduler_runtime.json")
+    }
+
+    var scheduledPromptURL: URL {
+        workspaceURL.appendingPathComponent("Automation/scheduled_search_prompt.txt")
     }
 
     var questionsURL: URL {
@@ -160,17 +196,20 @@ final class AppStore: ObservableObject {
         }
 
         let dateFilter = dateFilters[section] ?? .all
-        var filtered = source.filter { dateFilter.includes($0.discoveryDate) }
+        var filtered = source
+            .map { (lead: $0, discoveryDate: $0.discoveryDate) }
+            .filter { dateFilter.includes($0.discoveryDate) }
 
         if applySearchAndType {
             if selectedTypeFilter != "All" {
-                filtered = filtered.filter { $0.type == selectedTypeFilter }
+                filtered = filtered.filter { $0.lead.type == selectedTypeFilter }
             }
 
             let query = searchText.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
             if !query.isEmpty {
-                filtered = filtered.filter { lead in
-                    ([lead.title, lead.organization, lead.location, lead.type] +
+                filtered = filtered.filter { item in
+                    let lead = item.lead
+                    return ([lead.title, lead.organization, lead.location, lead.type] +
                         lead.summary + lead.requirements + lead.matchStrengths + lead.fitGaps)
                         .joined(separator: " ")
                         .lowercased()
@@ -183,11 +222,11 @@ final class AppStore: ObservableObject {
             if lhs.discoveryDate != rhs.discoveryDate {
                 return (lhs.discoveryDate ?? .distantPast) > (rhs.discoveryDate ?? .distantPast)
             }
-            let left = lhs.score ?? -1
-            let right = rhs.score ?? -1
+            let left = lhs.lead.score ?? -1
+            let right = rhs.lead.score ?? -1
             if left != right { return left > right }
-            return lhs.updatedAt > rhs.updatedAt
-        }
+            return lhs.lead.updatedAt > rhs.lead.updatedAt
+        }.map(\.lead)
     }
 
     var selectedQuestion: EvidenceQuestion? {
@@ -225,26 +264,51 @@ final class AppStore: ObservableObject {
     func reload() {
         loadConfig()
         loadState()
-        refreshDocuments()
         loadQuestions()
+        refreshDocuments(force: true)
+        refreshEvidenceSourceFreshness()
+        refreshBackgroundAutomationState()
         showToast("Workspace refreshed")
     }
 
-    func refreshAutomationSyncState() {
-        guard !previewMode,
-              let data = try? Data(contentsOf: configURL),
-              let savedConfig = try? decoder.decode(AppConfig.self, from: data) else { return }
+    func refreshBackgroundAutomationState() {
+        guard !previewMode else { return }
+        refreshScheduledRunRuntime()
+        guard localScheduleStatusRefreshTask == nil else { return }
 
-        let savedAutomation = savedConfig.automation
-        guard config.automation.needsCodexSync != savedAutomation.needsCodexSync
-                || config.automation.lastSyncedAt != savedAutomation.lastSyncedAt
-                || config.automation.automationID != savedAutomation.automationID else { return }
+        localScheduleStatusRefreshTask = Task { [weak self] in
+            let status = await Task.detached(priority: .utility) {
+                LocalScheduleService().status()
+            }.value
+            guard let self else { return }
+            localScheduleStatusRefreshTask = nil
+            applyLocalScheduleStatus(status)
+        }
+    }
 
-        var refreshedConfig = config
-        refreshedConfig.automation.needsCodexSync = savedAutomation.needsCodexSync
-        refreshedConfig.automation.lastSyncedAt = savedAutomation.lastSyncedAt
-        refreshedConfig.automation.automationID = savedAutomation.automationID
-        config = refreshedConfig
+    func refreshScheduledRunRuntime() {
+        guard !previewMode else { return }
+        let refreshed: ScheduledRunRuntime
+        if let data = try? Data(contentsOf: schedulerRuntimeURL),
+           let runtime = try? decoder.decode(ScheduledRunRuntime.self, from: data) {
+            refreshed = runtime
+        } else {
+            refreshed = ScheduledRunRuntime()
+        }
+        if refreshed != scheduledRunRuntime { scheduledRunRuntime = refreshed }
+    }
+
+    private func applyLocalScheduleStatus(_ status: LocalScheduleStatus) {
+        if status != localScheduleStatus { localScheduleStatus = status }
+        if scheduledRunRuntime.isRunning && !localScheduleStatus.running {
+            scheduledRunRuntime.state = "interrupted"
+            scheduledRunRuntime.message = "The previous background process is no longer running. Open its log for details."
+        }
+
+        let recurring = config.automation.enabled && config.automation.frequency != "manual"
+        if recurring && config.automation.schedulerBackend == "local" && !localScheduleStatus.loaded {
+            config.automation.needsCodexSync = true
+        }
     }
 
     func saveConfig(markAutomationDirty: Bool = false) {
@@ -262,6 +326,9 @@ final class AppStore: ObservableObject {
     func setAssistantProvider(_ provider: String) {
         let normalized = provider == "claude" ? "claude" : "codex"
         UserDefaults.standard.set(normalized, forKey: Self.assistantProviderPreferenceKey)
+        if config.automation.enabled && config.automation.frequency != "manual" {
+            saveConfig(markAutomationDirty: true)
+        }
         objectWillChange.send()
         showToast("Integration set to \(normalized == "claude" ? "Claude Code" : "Codex")")
     }
@@ -304,17 +371,137 @@ final class AppStore: ObservableObject {
         config.onboardingCompleted = true
         config.onboardingCompletedAt = Self.timestamp()
         config.workspacePath = workspaceURL.path
-        config.automation.needsCodexSync = true
+        config.automation.needsCodexSync = config.automation.enabled && config.automation.frequency != "manual"
         UserDefaults.standard.set(workspaceURL.path, forKey: Self.workspacePreferenceKey)
-        saveConfig(markAutomationDirty: true)
+        saveConfig(markAutomationDirty: config.automation.enabled && config.automation.frequency != "manual")
         writeIntakeSummary()
         markQuestionAuditStale("Initial intake is ready for a source-specific evidence audit.")
         openAssistantRequest(setupCompletionRequest())
     }
 
-    func saveAutomationAndOpenSync() {
+    func saveAutomationSchedule() {
+        guard !previewMode else { return }
+        guard !isBusy else { return }
+        guard !isAnySearchRunning else {
+            errorMessage = "Wait for the current search to finish before changing its schedule."
+            return
+        }
+
+        config.automation.enabled = config.automation.frequency != "manual"
         saveConfig(markAutomationDirty: true)
-        openAssistantRequest(automationSyncRequest())
+
+        if !config.automation.enabled {
+            isBusy = true
+            Task { [weak self] in
+                do {
+                    let status = try await Task.detached(priority: .userInitiated) {
+                        let service = LocalScheduleService()
+                        try service.remove()
+                        return service.status()
+                    }.value
+                    guard let self else { return }
+                    completeLocalScheduleChange(status: status, message: "Recurring schedule removed")
+                } catch {
+                    self?.handleLocalScheduleFailure(error)
+                }
+                self?.isBusy = false
+            }
+            return
+        }
+
+        do {
+            guard assistantProvider != "none" else {
+                throw ScheduleReadinessError.assistantUnavailable("Codex or Claude Code")
+            }
+            guard !questionBank.auditStatus.needsAudit,
+                  questionsNeedingAnswer.isEmpty,
+                  questionsAwaitingReview.isEmpty else {
+                throw ScheduleReadinessError.evidenceReviewPending
+            }
+            guard let assistant = assistantExecutableURL() else {
+                throw ScheduleReadinessError.assistantUnavailable(assistantDisplayName)
+            }
+            let runner = scheduledRunnerURL
+            guard fileManager.isExecutableFile(atPath: runner.path) else {
+                throw ScheduleReadinessError.runnerUnavailable
+            }
+
+            if config.automation.schedulerBackend == "assistant",
+               config.automation.legacyAssistantAutomationID.isEmpty,
+               config.automation.automationID != LocalScheduleService.defaultLabel {
+                config.automation.legacyAssistantAutomationID = config.automation.automationID
+            }
+
+            try runSearchRequest().write(to: scheduledPromptURL, atomically: true, encoding: .utf8)
+            let schedule = LocalScheduleConfiguration(
+                label: LocalScheduleService.defaultLabel,
+                workspaceURL: workspaceURL,
+                provider: assistantProvider,
+                assistantExecutableURL: assistant,
+                runnerExecutableURL: runner,
+                promptFileURL: scheduledPromptURL,
+                frequency: config.automation.frequency,
+                weekdaysOnly: config.automation.weekdaysOnly,
+                weeklyDay: config.automation.weeklyDay,
+                hour: config.automation.hour,
+                minute: config.automation.minute
+            )
+
+            isBusy = true
+            Task { [weak self] in
+                do {
+                    let status = try await Task.detached(priority: .userInitiated) {
+                        let service = LocalScheduleService()
+                        try service.install(schedule)
+                        return service.status()
+                    }.value
+                    guard status.loaded else {
+                        throw LocalScheduleError.launchctlFailed("The service did not remain loaded after registration.")
+                    }
+                    guard let self else { return }
+                    completeLocalScheduleChange(status: status, message: "Recurring schedule saved on this Mac")
+                } catch {
+                    self?.handleLocalScheduleFailure(error)
+                }
+                self?.isBusy = false
+            }
+        } catch {
+            handleLocalScheduleFailure(error)
+        }
+    }
+
+    private func completeLocalScheduleChange(status: LocalScheduleStatus, message: String) {
+        localScheduleStatus = status
+        config.automation.schedulerBackend = "local"
+        config.automation.automationID = LocalScheduleService.defaultLabel
+        config.automation.needsCodexSync = false
+        config.automation.lastSyncedAt = Self.timestamp()
+        saveConfig()
+        refreshScheduledRunRuntime()
+        showToast(message)
+    }
+
+    private func handleLocalScheduleFailure(_ error: Error) {
+        config.automation.needsCodexSync = true
+        saveConfig()
+        refreshScheduledRunRuntime()
+        errorMessage = error.localizedDescription
+    }
+
+    func markScheduleDraftDirty() {
+        guard !config.automation.needsCodexSync else { return }
+        config.automation.needsCodexSync = true
+    }
+
+    func openCodexScheduled() {
+        guard let url = URL(string: "codex://automations") else { return }
+        NSWorkspace.shared.open(url)
+    }
+
+    func confirmLegacyAssistantScheduleDisabled() {
+        config.automation.legacyAssistantAutomationID = ""
+        saveConfig()
+        showToast("Legacy schedule marked disabled")
     }
 
     func saveEvidenceAnswers() {
@@ -326,8 +513,11 @@ final class AppStore: ObservableObject {
 
     func refreshQuestions(showConfirmation: Bool = true) {
         if previewMode { return }
-        loadQuestions()
-        if showConfirmation { showToast("Questions refreshed") }
+        loadQuestions(onlyIfChanged: !showConfirmation)
+        if showConfirmation {
+            refreshEvidenceSourceFreshness()
+            showToast("Questions refreshed")
+        }
     }
 
     func saveQuestionResponse(_ questionID: String, answer: String, status: EvidenceQuestionStatus) {
@@ -375,8 +565,9 @@ final class AppStore: ObservableObject {
         installBundledWorkspaceSupport()
         loadConfig()
         loadState()
-        refreshDocuments()
+        refreshDocuments(force: true)
         loadQuestions()
+        refreshEvidenceSourceFreshness()
     }
 
     func chooseWorkspaceFolder() {
@@ -535,7 +726,7 @@ final class AppStore: ObservableObject {
             for source in panel.urls {
                 try copyItemUniquely(from: source, to: destination)
             }
-            refreshDocuments()
+            refreshDocuments(force: true)
             markQuestionAuditStale("New or changed documents were imported after the previous evidence audit.")
             showToast("Documents imported")
         } catch {
@@ -564,16 +755,37 @@ final class AppStore: ObservableObject {
         }
     }
 
-    func refreshDocuments() {
+    func refreshDocuments(force: Bool = false) {
+        guard !previewMode else { return }
+        if documentRefreshTask != nil && !force { return }
+        documentRefreshGeneration += 1
+        let generation = documentRefreshGeneration
+        let workspace = workspaceURL
+        documentRefreshTask?.cancel()
+        documentRefreshTask = Task { [weak self] in
+            let items = await Task.detached(priority: .utility) {
+                Self.scanDocuments(in: workspace)
+            }.value
+            guard !Task.isCancelled, let self,
+                  documentRefreshGeneration == generation else { return }
+            documentItems = items
+            documentRefreshTask = nil
+        }
+    }
+
+    nonisolated private static func scanDocuments(in workspaceURL: URL) -> [DocumentItem] {
         var items: [DocumentItem] = []
+        let fileManager = FileManager.default
         for category in DocumentCategory.allCases {
-            let directory = documentDirectory(for: category)
+            guard !Task.isCancelled else { return [] }
+            let directory = workspaceURL.appendingPathComponent("Documents/\(category.rawValue)", isDirectory: true)
             guard let enumerator = fileManager.enumerator(
                 at: directory,
                 includingPropertiesForKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey],
                 options: [.skipsHiddenFiles]
             ) else { continue }
             for case let url as URL in enumerator {
+                guard !Task.isCancelled else { return [] }
                 guard let values = try? url.resourceValues(forKeys: [.contentModificationDateKey, .fileSizeKey, .isRegularFileKey]),
                       values.isRegularFile == true else { continue }
                 items.append(
@@ -586,7 +798,7 @@ final class AppStore: ObservableObject {
                 )
             }
         }
-        documentItems = items.sorted { $0.modifiedAt > $1.modifiedAt }
+        return items.sorted { $0.modifiedAt > $1.modifiedAt }
     }
 
     func documentCount(for category: DocumentCategory) -> Int {
@@ -670,8 +882,12 @@ final class AppStore: ObservableObject {
             errorMessage = "Choose Codex or Claude Code under Settings > Integration first."
             return
         }
-        guard !isSearchRunInProgress else {
+        guard !isAnySearchRunning else {
             showToast("A search is already running")
+            return
+        }
+        guard acquireSearchRunLock() else {
+            errorMessage = "Another Career Command Center search is already running in this workspace."
             return
         }
         let executable: URL?
@@ -692,11 +908,13 @@ final class AppStore: ObservableObject {
                 "exec",
                 "--skip-git-repo-check",
                 "--sandbox", "workspace-write",
+                "--ask-for-approval", "never",
                 "-C", workspaceURL.path,
                 runSearchRequest()
             ]
         }
         guard let executable else {
+            releaseSearchRunLock()
             errorMessage = "\(assistantDisplayName) could not be found. Install or update its desktop app or CLI, then try again."
             return
         }
@@ -733,6 +951,7 @@ final class AppStore: ObservableObject {
             try process.run()
             showToast("\(assistantDisplayName) search started")
         } catch {
+            releaseSearchRunLock()
             searchRunProcess = nil
             try? searchRunLogHandle?.close()
             searchRunLogHandle = nil
@@ -742,27 +961,38 @@ final class AppStore: ObservableObject {
     }
 
     func stopSearchRun() {
-        guard let process = searchRunProcess, process.isRunning else {
+        if let process = searchRunProcess, process.isRunning {
+            searchRunCancelledByUser = true
+            process.terminate()
+            showToast("Stopping \(assistantDisplayName) search")
+            return
+        }
+        guard scheduledRunRuntime.isRunning && localScheduleStatus.running else {
             showToast("No search is running")
             return
         }
-        searchRunCancelledByUser = true
-        process.terminate()
-        showToast("Stopping \(assistantDisplayName) search")
-    }
-
-    func automationSyncRequest() -> String {
-        let scheduleInstruction = assistantProvider == "claude"
-            ? "Create or update the single matching Claude Code scheduled job using /schedule when active, or pause/remove it when manual mode is selected. If this Claude installation cannot schedule a task with access to the local workspace, explain that exact blocker and leave the schedule unsynchronized."
-            : "Create or update the single matching Codex automation when active, or pause/remove it when manual mode is selected."
-        return "Synchronize the real \(assistantDisplayName) schedule for Career Command Center. Read \(managedSupportURL.appendingPathComponent("WORKFLOW.md").path) and \(configURL.path), then run \(managedSupportURL.appendingPathComponent("scripts/render_automation_spec.py").path) for \(workspaceURL.path). \(scheduleInstruction) Run mark_automation_synced.py only after the real scheduled-task operation succeeds."
+        guard !isBusy else { return }
+        isBusy = true
+        Task { [weak self] in
+            do {
+                let status = try await Task.detached(priority: .userInitiated) {
+                    let service = LocalScheduleService()
+                    try service.stop()
+                    return service.status()
+                }.value
+                guard let self else { return }
+                localScheduleStatus = status
+                markScheduledRuntimeStopped()
+                showToast("Stopping background search")
+            } catch {
+                self?.errorMessage = "Could not stop the background search: \(error.localizedDescription)"
+            }
+            self?.isBusy = false
+        }
     }
 
     func setupCompletionRequest() -> String {
-        let scheduleInstruction = assistantProvider == "claude"
-            ? "If it requests a recurring schedule and the evidence workflow is ready, create or update one matching Claude Code scheduled job using /schedule. If local-workspace scheduling is unavailable, leave it unsynchronized and explain the blocker."
-            : "If it requests a recurring schedule and the evidence workflow is ready, create or update one matching Codex automation."
-        return "Finish Career Command Center setup for \(workspaceURL.path). Treat \(managedSupportURL.path) as the workflow root and read its WORKFLOW.md before acting. Audit the imported documents and evidence, create only source-specific follow-up questions, and complete the evidence foundation. Read \(configURL.path). \(scheduleInstruction) Run mark_automation_synced.py only after the real scheduled-task operation succeeds."
+        "Finish Career Command Center setup for \(workspaceURL.path). Treat \(managedSupportURL.path) as the workflow root and read its WORKFLOW.md before acting. Audit the imported documents and evidence, create only source-specific follow-up questions, and complete the evidence foundation. Read \(configURL.path). Do not create an assistant-managed scheduled task; the native app registers its own local CLI schedule after the evidence foundation is ready."
     }
 
     func runSearchRequest() -> String {
@@ -792,6 +1022,44 @@ final class AppStore: ObservableObject {
             URLQueryItem(name: "path", value: workspace.path)
         ]
         return components?.url
+    }
+
+    private var scheduledRunnerURL: URL {
+        Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/CareerCommandCenterRunner")
+    }
+
+    private func assistantExecutableURL() -> URL? {
+        assistantProvider == "claude" ? claudeExecutableURL() : codexExecutableURL()
+    }
+
+    private func acquireSearchRunLock() -> Bool {
+        let lockURL = workspaceURL.appendingPathComponent("Automation/search-run.lock")
+        searchRunLockDescriptor = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
+        guard searchRunLockDescriptor >= 0 else { return false }
+        guard flock(searchRunLockDescriptor, LOCK_EX | LOCK_NB) == 0 else {
+            Darwin.close(searchRunLockDescriptor)
+            searchRunLockDescriptor = -1
+            return false
+        }
+        return true
+    }
+
+    private func releaseSearchRunLock() {
+        guard searchRunLockDescriptor >= 0 else { return }
+        flock(searchRunLockDescriptor, LOCK_UN)
+        Darwin.close(searchRunLockDescriptor)
+        searchRunLockDescriptor = -1
+    }
+
+    private func markScheduledRuntimeStopped() {
+        var runtime = scheduledRunRuntime
+        runtime.state = "stopped"
+        runtime.finishedAt = Self.timestamp()
+        runtime.updatedAt = runtime.finishedAt
+        runtime.message = "The background search was stopped from Career Command Center."
+        runtime.exitCode = nil
+        try? atomicWrite(runtime, to: schedulerRuntimeURL)
+        scheduledRunRuntime = runtime
     }
 
     private func codexExecutableURL() -> URL? {
@@ -917,9 +1185,9 @@ final class AppStore: ObservableObject {
         searchRunLogHandle = nil
         searchRunProcess = nil
         isSearchRunInProgress = false
+        releaseSearchRunLock()
         loadConfig()
         loadState()
-        refreshDocuments()
         loadQuestions()
         if wasCancelled {
             showToast("\(assistantDisplayName) search stopped")
@@ -927,6 +1195,23 @@ final class AppStore: ObservableObject {
             showToast("\(assistantDisplayName) search completed")
         } else {
             errorMessage = "\(assistantDisplayName) search stopped with exit code \(exitCode). Open the run log for details."
+        }
+    }
+
+    private enum ScheduleReadinessError: LocalizedError {
+        case evidenceReviewPending
+        case assistantUnavailable(String)
+        case runnerUnavailable
+
+        var errorDescription: String? {
+            switch self {
+            case .evidenceReviewPending:
+                return "Finish the evidence audit and review all open questions before enabling unattended searches."
+            case .assistantUnavailable(let name):
+                return "\(name) is not available. Install or sign in to its CLI, then try again."
+            case .runnerUnavailable:
+                return "The signed background runner is missing. Reinstall Career Command Center."
+            }
         }
     }
 
@@ -967,6 +1252,9 @@ final class AppStore: ObservableObject {
         questionBank.updatedAt = Self.timestamp()
         do {
             try atomicWrite(questionBank, to: questionsURL)
+            questionsFileModificationDate = try? questionsURL.resourceValues(
+                forKeys: [.contentModificationDateKey]
+            ).contentModificationDate
         } catch {
             errorMessage = "Could not save evidence questions: \(error.localizedDescription)"
         }
@@ -978,16 +1266,20 @@ final class AppStore: ObservableObject {
         saveQuestions()
     }
 
-    private func loadQuestions() {
+    private func loadQuestions(onlyIfChanged: Bool = false) {
         do {
             if fileManager.fileExists(atPath: questionsURL.path) {
+                let modifiedAt = try questionsURL.resourceValues(
+                    forKeys: [.contentModificationDateKey]
+                ).contentModificationDate
+                if onlyIfChanged, modifiedAt == questionsFileModificationDate { return }
                 let data = try Data(contentsOf: questionsURL)
                 questionBank = try decoder.decode(PersonalizedQuestionBank.self, from: data)
+                questionsFileModificationDate = modifiedAt
             } else {
                 questionBank = PersonalizedQuestionBank()
                 saveQuestions()
             }
-            markQuestionAuditStaleIfSourcesChanged()
             if !questionBank.questions.contains(where: { $0.id == selectedQuestionID }) {
                 selectedQuestionID = questionsNeedingAnswer.first?.id
                     ?? questionsAwaitingReview.first?.id
@@ -1000,29 +1292,47 @@ final class AppStore: ObservableObject {
         }
     }
 
-    private func markQuestionAuditStaleIfSourcesChanged() {
-        guard questionBank.auditStatus == .current,
-              let auditedAt = ISO8601DateFormatter().date(from: questionBank.generatedAt),
-              let newestSource = newestEvidenceSourceDate(),
-              newestSource.timeIntervalSince(auditedAt) > 2 else { return }
-        questionBank.auditStatus = .needsRefresh
-        questionBank.sourceChangeNote = "Source files changed after the previous evidence audit."
-        saveQuestions()
+    private func refreshEvidenceSourceFreshness() {
+        guard !previewMode,
+              questionBank.auditStatus == .current,
+              let auditedAt = ISO8601DateFormatter().date(from: questionBank.generatedAt) else { return }
+
+        evidenceSourceRefreshGeneration += 1
+        let generation = evidenceSourceRefreshGeneration
+        let sourceGenerationID = questionBank.generationID
+        let workspace = workspaceURL
+        evidenceSourceRefreshTask?.cancel()
+        evidenceSourceRefreshTask = Task { [weak self] in
+            let newestSource = await Task.detached(priority: .utility) {
+                Self.newestEvidenceSourceDate(in: workspace)
+            }.value
+            guard !Task.isCancelled, let self,
+                  evidenceSourceRefreshGeneration == generation else { return }
+            evidenceSourceRefreshTask = nil
+            guard questionBank.auditStatus == .current,
+                  questionBank.generationID == sourceGenerationID,
+                  let newestSource,
+                  newestSource.timeIntervalSince(auditedAt) > 2 else { return }
+            markQuestionAuditStale("Source files changed after the previous evidence audit.")
+        }
     }
 
-    private func newestEvidenceSourceDate() -> Date? {
+    nonisolated private static func newestEvidenceSourceDate(in workspaceURL: URL) -> Date? {
         let roots = [
             workspaceURL.appendingPathComponent("Documents", isDirectory: true),
             workspaceURL.appendingPathComponent("Projects", isDirectory: true),
         ]
+        let fileManager = FileManager.default
         var newest: Date?
         for root in roots {
+            guard !Task.isCancelled else { return newest }
             guard let enumerator = fileManager.enumerator(
                 at: root,
                 includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
                 options: [.skipsHiddenFiles]
             ) else { continue }
             for case let url as URL in enumerator {
+                guard !Task.isCancelled else { return newest }
                 guard let values = try? url.resourceValues(
                     forKeys: [.contentModificationDateKey, .isRegularFileKey]
                 ), values.isRegularFile == true, let modifiedAt = values.contentModificationDate else { continue }
@@ -1295,6 +1605,8 @@ final class AppStore: ObservableObject {
                 .trimmingCharacters(in: CharacterSet(charactersIn: " \t\""))
             if let identifier, !identifier.isEmpty {
                 config.automation.automationID = identifier
+                config.automation.schedulerBackend = "assistant"
+                config.automation.legacyAssistantAutomationID = identifier
                 config.automation.needsCodexSync = true
                 config.automation.lastSyncedAt = ""
                 return

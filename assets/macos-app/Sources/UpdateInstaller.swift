@@ -80,7 +80,11 @@ struct CareerCommandCenterUpdateInstaller {
 
     private static func verify(_ app: URL) throws {
         let executable = app.appendingPathComponent("Contents/MacOS/CareerCommandCenter")
-        guard FileManager.default.isExecutableFile(atPath: executable.path) else {
+        let updater = app.appendingPathComponent("Contents/Helpers/CareerCommandCenterUpdater")
+        let runner = app.appendingPathComponent("Contents/Helpers/CareerCommandCenterRunner")
+        guard FileManager.default.isExecutableFile(atPath: executable.path),
+              FileManager.default.isExecutableFile(atPath: updater.path),
+              FileManager.default.isExecutableFile(atPath: runner.path) else {
             throw InstallerError.missingExecutable
         }
         let process = Process()

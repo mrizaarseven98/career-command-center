@@ -497,7 +497,7 @@ struct OnboardingView: View {
 
             InlineBanner(
                 kind: .info,
-                title: "One final step in \(store.assistantDisplayName)",
+                title: "Finish the evidence setup",
                 message: store.config.automation.frequency == "manual"
                     ? finishSetupMessage(manual: true)
                     : finishSetupMessage(manual: false)
@@ -556,7 +556,7 @@ struct OnboardingView: View {
     private func finishSetupMessage(manual: Bool) -> String {
         let outcome = manual
             ? "audit the files and place any source-specific follow-ups in Questions. No recurring search will be registered."
-            : "audit the evidence, create any source-specific follow-ups, and register the requested schedule when the evidence workflow is ready."
+            : "audit the evidence, create any source-specific follow-ups, and activate the app's local schedule when the evidence workflow is ready."
         if store.assistantProvider == "claude" {
             return "Finish Setup opens Claude when available and copies a prepared request. Paste it into a new Claude Code task so Claude can \(outcome)"
         }

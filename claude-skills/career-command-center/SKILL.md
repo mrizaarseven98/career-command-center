@@ -1,12 +1,12 @@
 ---
 name: career-command-center
 description: Install, set up, diagnose, or operate Career Command Center; audit career evidence; generate cited follow-up questions; build role-family master CVs; research targeted jobs or PhDs; tailor application packages; track applications; or synchronize recurring searches with Claude Code.
-version: 2.0.1
+version: 2.1.0
 ---
 
 # Career Command Center for Claude Code
 
-Use the native app for intake, questions, opportunity review, lifecycle state, and settings. Use Claude Code for evidence auditing, live research, document generation, validation, and explicitly requested scheduling.
+Use the native app for intake, questions, opportunity review, lifecycle state, settings, and local scheduling. Use Claude Code for evidence auditing, live research, document generation, validation, and each CLI-executed search.
 
 Resolve bundled files through `${CLAUDE_PLUGIN_ROOT}`. Never assume a cache location.
 
@@ -37,11 +37,11 @@ python3 "${CLAUDE_PLUGIN_ROOT}/scripts/install_app.py" --workspace "WORKSPACE" -
 
 ## Scheduling
 
-1. Run `render_automation_spec.py WORKSPACE` and read the complete result.
-2. Use one Claude Code `/schedule` job when the result is active. Update the existing matching job instead of creating a duplicate.
-3. The scheduled job must have access to the selected local workspace. If the active Claude surface or plan cannot provide that access, explain the exact limitation and leave the app in **Sync needed** state.
-4. If the result is paused, pause or remove the existing matching job.
-5. Run `mark_automation_synced.py` only after the real scheduled-job operation succeeds. Do not treat saved config as proof that a schedule exists.
+1. Run `python3 "${CLAUDE_PLUGIN_ROOT}/scripts/sync_local_schedule.py" "WORKSPACE" --provider claude`.
+2. This registers or removes a per-user macOS LaunchAgent that starts the signed app runner and local Claude Code CLI. Do not create a Claude `/schedule` job.
+3. Confirm the command reports the LaunchAgent as loaded and config records `schedulerBackend: local` with `needsCodexSync: false`.
+4. If the current sandbox cannot register a LaunchAgent, tell the user to open **Automation** in the native app and select **Save Schedule**.
+5. If an upgraded workspace records `legacyAssistantAutomationID`, ask the user to disable that older assistant-managed schedule once so two searches cannot run.
 
 ## Run Search Now
 

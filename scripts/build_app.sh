@@ -7,6 +7,7 @@ BUILD_ROOT="${BUILD_ROOT:-$PLUGIN_ROOT/build}"
 APP_BUNDLE="$BUILD_ROOT/Career Command Center.app"
 EXECUTABLE="$APP_BUNDLE/Contents/MacOS/CareerCommandCenter"
 HELPER="$APP_BUNDLE/Contents/Helpers/CareerCommandCenterUpdater"
+RUNNER="$APP_BUNDLE/Contents/Helpers/CareerCommandCenterRunner"
 MODULE_CACHE="$BUILD_ROOT/.module-cache"
 ARCHITECTURES="${ARCHITECTURES:-$(uname -m)}"
 ARCHES=($ARCHITECTURES)
@@ -66,6 +67,7 @@ mkdir -p \
 MAIN_SOURCES=(
   "$SOURCE_ROOT/Sources/CoreModels.swift"
   "$SOURCE_ROOT/Sources/UpdateService.swift"
+  "$SOURCE_ROOT/Sources/LocalScheduleService.swift"
   "$SOURCE_ROOT/Sources/AppStore.swift"
   "$SOURCE_ROOT/Sources/DesignSystem.swift"
   "$SOURCE_ROOT/Sources/OnboardingView.swift"
@@ -77,9 +79,11 @@ MAIN_SOURCES=(
 
 MAIN_SLICES=()
 HELPER_SLICES=()
+RUNNER_SLICES=()
 for arch in "${ARCHES[@]}"; do
   main_slice="$BUILD_ROOT/CareerCommandCenter-$arch"
   helper_slice="$BUILD_ROOT/CareerCommandCenterUpdater-$arch"
+  runner_slice="$BUILD_ROOT/CareerCommandCenterRunner-$arch"
   cache="$MODULE_CACHE/$arch"
   run_swift "$BUILD_ROOT/swift-main-$arch.log" "$cache" \
     -swift-version 5 \
@@ -103,20 +107,34 @@ for arch in "${ARCHES[@]}"; do
     -framework Foundation \
     "$SOURCE_ROOT/Sources/UpdateInstaller.swift" \
     -o "$helper_slice"
-  [[ -x "$main_slice" && -x "$helper_slice" ]] || {
+  run_swift "$BUILD_ROOT/swift-runner-$arch.log" "$cache" \
+    -swift-version 5 \
+    -strict-concurrency=complete \
+    -parse-as-library \
+    -O \
+    -target "$arch-apple-macos14.0" \
+    -module-cache-path "$cache" \
+    -framework Foundation \
+    "$SOURCE_ROOT/Sources/LocalScheduleService.swift" \
+    "$SOURCE_ROOT/Sources/ScheduledRunner.swift" \
+    -o "$runner_slice"
+  [[ -x "$main_slice" && -x "$helper_slice" && -x "$runner_slice" ]] || {
     echo "Swift compilation did not produce executable $arch slices." >&2
     exit 1
   }
   MAIN_SLICES+=("$main_slice")
   HELPER_SLICES+=("$helper_slice")
+  RUNNER_SLICES+=("$runner_slice")
 done
 
 if [[ ${#ARCHES[@]} -eq 1 ]]; then
   cp "${MAIN_SLICES[0]}" "$EXECUTABLE"
   cp "${HELPER_SLICES[0]}" "$HELPER"
+  cp "${RUNNER_SLICES[0]}" "$RUNNER"
 else
   /usr/bin/lipo -create "${MAIN_SLICES[@]}" -output "$EXECUTABLE"
   /usr/bin/lipo -create "${HELPER_SLICES[@]}" -output "$HELPER"
+  /usr/bin/lipo -create "${RUNNER_SLICES[@]}" -output "$RUNNER"
 fi
 
 cp "$SOURCE_ROOT/Info.plist" "$APP_BUNDLE/Contents/Info.plist"
@@ -132,10 +150,11 @@ cp \
   "$PLUGIN_ROOT/scripts/question_cli.py" \
   "$PLUGIN_ROOT/scripts/register_masters.py" \
   "$PLUGIN_ROOT/scripts/render_automation_spec.py" \
+  "$PLUGIN_ROOT/scripts/sync_local_schedule.py" \
   "$PLUGIN_ROOT/scripts/state_cli.py" \
   "$SUPPORT/scripts/"
 
-chmod +x "$EXECUTABLE" "$HELPER" "$SUPPORT"/scripts/*.py
+chmod +x "$EXECUTABLE" "$HELPER" "$RUNNER" "$SUPPORT"/scripts/*.py
 codesign --force --deep --sign - "$APP_BUNDLE" >/dev/null
 codesign --verify --deep --strict "$APP_BUNDLE"
 

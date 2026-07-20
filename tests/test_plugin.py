@@ -571,13 +571,15 @@ def main() -> int:
             shutil.copytree(source_app, fake_app, symlinks=True)
             fake_executable = fake_app / "Contents/MacOS/CareerCommandCenter"
             fake_helper = fake_app / "Contents/Helpers/CareerCommandCenterUpdater"
-            for executable in (fake_executable, fake_helper):
+            fake_runner = fake_app / "Contents/Helpers/CareerCommandCenterRunner"
+            for executable in (fake_executable, fake_helper, fake_runner):
                 executable.chmod(
                     executable.stat().st_mode
                     & ~(stat.S_IXUSR | stat.S_IXGRP | stat.S_IXOTH)
                 )
             assert not os.access(fake_executable, os.X_OK)
             assert not os.access(fake_helper, os.X_OK)
+            assert not os.access(fake_runner, os.X_OK)
 
             destination = Path(temporary) / "Applications/Career Command Center.app"
             install_result = json.loads(
@@ -593,10 +595,12 @@ def main() -> int:
             )
             installed_executable = destination / "Contents/MacOS/CareerCommandCenter"
             installed_helper = destination / "Contents/Helpers/CareerCommandCenterUpdater"
+            installed_runner = destination / "Contents/Helpers/CareerCommandCenterRunner"
             assert install_result["executable_permission_repaired"] is True
             assert install_result["assistant_provider"] == "claude"
             assert os.access(installed_executable, os.X_OK)
             assert os.access(installed_helper, os.X_OK)
+            assert os.access(installed_runner, os.X_OK)
             run("/usr/bin/codesign", "--verify", "--deep", "--strict", destination)
 
     print("Plugin integration tests passed")

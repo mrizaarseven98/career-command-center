@@ -28,7 +28,7 @@ struct CareerCommandCenterApp: App {
                 await store.checkForUpdates(silent: true)
             }
             .onReceive(NotificationCenter.default.publisher(for: NSApplication.didBecomeActiveNotification)) { _ in
-                store.refreshAutomationSyncState()
+                store.refreshBackgroundAutomationState()
             }
         }
         .defaultSize(width: 1280, height: 800)

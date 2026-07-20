@@ -199,15 +199,10 @@ struct CoreTests {
         let setupRequest = store.setupCompletionRequest()
         try expect(setupRequest.contains("WORKFLOW.md"), "fresh setup uses the workflow bundled with the app")
         try expect(setupRequest.contains(root.path), "fresh setup hands off the selected workspace")
-        try expect(setupRequest.contains("create or update one matching Codex automation"), "fresh recurring setup requests a real Codex automation")
-
-        let syncRequest = store.automationSyncRequest()
-        try expect(syncRequest.contains(store.configURL.path), "schedule sync reads the saved app configuration")
         try expect(
-            syncRequest.localizedCaseInsensitiveContains("create or update the single matching Codex automation"),
-            "schedule sync updates the real registered automation"
+            setupRequest.contains("Do not create an assistant-managed scheduled task"),
+            "fresh setup leaves recurring execution to the native local scheduler"
         )
-        try expect(syncRequest.contains("only after the real scheduled-task operation succeeds"), "schedule sync cannot claim success before registration")
 
         let fakeCodex = root.appendingPathComponent("fake-codex")
         try "#!/bin/sh\nprintf '%s\\n' \"$@\"\n".write(to: fakeCodex, atomically: true, encoding: .utf8)
@@ -225,6 +220,7 @@ struct CoreTests {
         try expect(!store.searchRunLogPath.isEmpty, "Run Now records a visible log path")
         let codexArguments = try String(contentsOfFile: store.searchRunLogPath, encoding: .utf8)
         try expect(codexArguments.contains("--search"), "Run Now enables current web search")
+        try expect(codexArguments.contains("never"), "Run Now cannot block on an invisible approval prompt")
         try expect(codexArguments.contains(root.path), "Run Now executes against the selected workspace")
         try expect(codexArguments.contains("WORKFLOW.md"), "Run Now explicitly invokes the app-bundled workflow")
 
@@ -242,7 +238,6 @@ struct CoreTests {
         try expect(claudeArguments.contains("--print"), "Claude Code runs non-interactively")
         try expect(claudeArguments.contains("auto"), "Claude Code uses its guarded automatic permission mode")
         try expect(claudeArguments.contains("WORKFLOW.md"), "Claude Code uses the app-bundled workflow")
-        try expect(store.automationSyncRequest().contains("/schedule"), "Claude schedule handoff uses Claude Code scheduling")
 
         let slowCodex = root.appendingPathComponent("slow-codex")
         try "#!/bin/sh\ntrap 'exit 0' TERM\nwhile :; do sleep 1; done\n".write(
@@ -270,7 +265,11 @@ struct CoreTests {
             withIntermediateDirectories: true
         )
         try "new project evidence".write(to: manuallyAddedProject, atomically: true, encoding: .utf8)
-        store.refreshQuestions(showConfirmation: false)
+        store.refreshQuestions()
+        let sourceRefreshDeadline = Date().addingTimeInterval(5)
+        while store.questionBank.auditStatus == .current && Date() < sourceRefreshDeadline {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.05))
+        }
         try expect(store.questionBank.auditStatus == .needsRefresh, "manual source changes invalidate the prior audit")
 
         var resetQuestionFixture = questionFixture
@@ -359,15 +358,15 @@ struct CoreTests {
         try expect(config.profile.fullName == "Test Candidate", "config persists")
         try expect(config.automation.needsCodexSync, "schedule changes mark Codex sync required")
 
-        config.automation.needsCodexSync = false
-        config.automation.lastSyncedAt = "2026-07-18T08:00:00Z"
-        config.automation.automationID = "external-codex-automation"
+        config.automation.schedulerBackend = "local"
+        config.automation.legacyAssistantAutomationID = "old-codex-schedule"
         configData = try JSONEncoder().encode(config)
-        try configData.write(to: reloaded.configURL, options: .atomic)
-        reloaded.refreshAutomationSyncState()
-        try expect(!reloaded.config.automation.needsCodexSync, "external Codex sync clears the in-memory warning")
-        try expect(reloaded.config.automation.lastSyncedAt == "2026-07-18T08:00:00Z", "external sync timestamp refreshes in memory")
-        try expect(reloaded.config.automation.automationID == "external-codex-automation", "external automation identity refreshes in memory")
+        let decodedScheduleConfig = try JSONDecoder().decode(AppConfig.self, from: configData)
+        try expect(decodedScheduleConfig.automation.schedulerBackend == "local", "local scheduler ownership persists")
+        try expect(
+            decodedScheduleConfig.automation.legacyAssistantAutomationID == "old-codex-schedule",
+            "legacy assistant schedule identity persists until migration is confirmed"
+        )
 
         let legacyWorkspace = root.appendingPathComponent("Legacy Workspace", isDirectory: true)
         let legacyStore = AppStore(workspaceOverride: legacyWorkspace)

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Mark the app schedule synchronized after automation_update succeeds."""
+"""Record a legacy assistant-managed schedule during migration only."""
 
 from __future__ import annotations
 
@@ -20,9 +20,11 @@ def main() -> int:
     config = json.loads(path.read_text(encoding="utf-8"))
     automation = config.setdefault("automation", {})
     automation["needsCodexSync"] = False
+    automation["schedulerBackend"] = "assistant"
     automation["lastSyncedAt"] = datetime.now(timezone.utc).isoformat(timespec="seconds")
     if args.automation_id:
         automation["automationID"] = args.automation_id
+        automation["legacyAssistantAutomationID"] = args.automation_id
 
     fd, temporary = tempfile.mkstemp(prefix=path.name + ".", dir=path.parent)
     with os.fdopen(fd, "w", encoding="utf-8") as handle:

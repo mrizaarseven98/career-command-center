@@ -99,7 +99,9 @@ struct SidebarView: View {
 
             Spacer()
 
-            if store.config.automation.needsCodexSync {
+            if store.config.automation.enabled
+                && store.config.automation.frequency != "manual"
+                && (store.config.automation.needsCodexSync || !store.localScheduleStatus.loaded) {
                 Button {
                     store.selectedSection = .automation
                 } label: {
@@ -107,9 +109,9 @@ struct SidebarView: View {
                         Image(systemName: "exclamationmark.arrow.triangle.2.circlepath")
                             .foregroundStyle(AppTheme.amber)
                         VStack(alignment: .leading, spacing: 1) {
-                            Text("Sync needed")
+                            Text("Schedule setup needed")
                                 .font(.system(size: 11, weight: .semibold))
-                            Text("Recurring schedule not registered")
+                            Text("Save it in Automation")
                                 .font(.system(size: 10))
                                 .foregroundStyle(.secondary)
                         }
@@ -123,7 +125,7 @@ struct SidebarView: View {
                 .padding(.bottom, 10)
             }
 
-            if store.isSearchRunInProgress {
+            if store.isAnySearchRunning {
                 Button {
                     store.stopSearchRun()
                 } label: {

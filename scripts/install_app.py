@@ -20,6 +20,7 @@ BUILD_SCRIPT = PLUGIN_ROOT / "scripts" / "build_app.sh"
 EXECUTABLE_RELATIVE_PATHS = (
     Path("Contents/MacOS/CareerCommandCenter"),
     Path("Contents/Helpers/CareerCommandCenterUpdater"),
+    Path("Contents/Helpers/CareerCommandCenterRunner"),
 )
 
 

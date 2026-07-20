@@ -20,7 +20,7 @@ In a Codex or Claude task with access to the workspace, enter:
 Diagnose Career Command Center and summarize blockers without changing my documents.
 ```
 
-The diagnostic checks workspace structure, configuration, evidence readiness, master CV registration, lead state, and schedule synchronization.
+The diagnostic checks workspace structure, configuration, evidence readiness, master CV registration, lead state, and local schedule readiness.
 
 ## Common Problems
 
@@ -36,9 +36,9 @@ Open **Settings > Integration** and confirm the intended assistant is selected a
 
 Open **Automation > Run Log**. Authentication, quota, permission, and network failures are reported there. The app refreshes lead state only after the assistant process exits.
 
-### The schedule shows Sync needed
+### The schedule shows setup needed
 
-Schedule settings are not considered active merely because they were saved in the app. Use **Open Codex to Register** or the equivalent Claude Code action and complete the assistant task. This registration step opens the assistant because only the assistant can create its own recurring task. **Run Search Now** is separate and executes directly. The app refreshes the sync state when it becomes active and while the Automation screen is open.
+Open **Automation** and select **Save Schedule**. The app directly installs a per-user macOS LaunchAgent and verifies that it was loaded; it should not open Codex or Claude. The app window may be closed afterward, but the Mac must be on and the user logged in at the run time. Open **Run Log** when a background run fails. An upgraded installation may show one migration warning until its older assistant-managed schedule is disabled.
 
 ### New opportunities are missing
 

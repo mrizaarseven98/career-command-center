@@ -44,9 +44,13 @@ codesign --verify --deep --strict "$APP"
 for required_arch in $APP_ARCHITECTURES; do
   lipo "$APP/Contents/MacOS/CareerCommandCenter" -verify_arch "$required_arch"
   lipo "$APP/Contents/Helpers/CareerCommandCenterUpdater" -verify_arch "$required_arch"
+  lipo "$APP/Contents/Helpers/CareerCommandCenterRunner" -verify_arch "$required_arch"
 done
 
+python3 tests/test_scheduled_runner.py --app "$APP"
+
 COMMON_SOURCES=(
+  assets/macos-app/Sources/LocalScheduleService.swift
   assets/macos-app/Sources/CoreModels.swift
   assets/macos-app/Sources/UpdateService.swift
   assets/macos-app/Sources/AppStore.swift
@@ -68,6 +72,13 @@ run_swift "$TEST_BUILD/core.log" \
   assets/macos-app/Tests/CoreTests.swift \
   -o "$TEST_BUILD/CoreTests"
 "$TEST_BUILD/CoreTests"
+
+run_swift "$TEST_BUILD/performance.log" \
+  "${COMMON_FLAGS[@]}" \
+  "${COMMON_SOURCES[@]}" \
+  assets/macos-app/Tests/PerformanceTests.swift \
+  -o "$TEST_BUILD/PerformanceTests"
+"$TEST_BUILD/PerformanceTests"
 
 run_swift "$TEST_BUILD/compatibility.log" \
   "${COMMON_FLAGS[@]}" \
@@ -100,5 +111,17 @@ run_swift "$TEST_BUILD/snapshot.log" \
   assets/macos-app/Sources/QuestionsView.swift \
   assets/macos-app/Tests/SnapshotApp.swift \
   -o "$TEST_BUILD/SnapshotApp"
+
+run_swift "$TEST_BUILD/render-performance.log" \
+  "${COMMON_FLAGS[@]}" \
+  "${COMMON_SOURCES[@]}" \
+  assets/macos-app/Sources/DesignSystem.swift \
+  assets/macos-app/Sources/OnboardingView.swift \
+  assets/macos-app/Sources/LeadWorkspaceView.swift \
+  assets/macos-app/Sources/LibraryViews.swift \
+  assets/macos-app/Sources/QuestionsView.swift \
+  assets/macos-app/Tests/RenderPerformanceTests.swift \
+  -o "$TEST_BUILD/RenderPerformanceTests"
+"$TEST_BUILD/RenderPerformanceTests"
 
 echo "All macOS application tests passed"

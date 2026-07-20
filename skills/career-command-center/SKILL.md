@@ -5,7 +5,7 @@ description: Install, set up, open, diagnose, or operate Career Command Center; 
 
 # Career Command Center
 
-Use the bundled app for user input and lifecycle management. Use Codex for evidence auditing, web research, document generation, quality review, and scheduled runs.
+Use the bundled app for user input, lifecycle management, and local scheduling. Use Codex for evidence auditing, web research, document generation, quality review, and each CLI-executed search.
 
 `PLUGIN_ROOT` is the plugin directory containing this skill. Scripts live in `PLUGIN_ROOT/scripts`; references live in `PLUGIN_ROOT/references`.
 
@@ -46,14 +46,14 @@ python3 PLUGIN_ROOT/scripts/install_app.py --workspace WORKSPACE
    - Render and visually inspect PDF and editable-source output.
    - Register approved master paths in both config and evidence JSON with `register_masters.py WORKSPACE --master FAMILY=PATH` (repeat `--master` for each family).
 9. Run `state_cli.py --workspace WORKSPACE migrate-assessments`, then `doctor.py WORKSPACE --strict`. Resolve blockers and evidence-readiness warnings.
-10. Run `render_automation_spec.py WORKSPACE`.
-11. If its status is `ACTIVE`, use its full prompt and schedule to create or update the one existing Career Command Center automation with the Codex `automation_update` tool. Do not create a duplicate automation. The automation must target the Codex project containing `WORKSPACE`.
-12. If its status is `PAUSED`, do not create an automation. Pause or delete a previously registered Career Command Center automation if one exists.
-13. Only after the requested active or manual state is reflected in Codex, run:
+10. Register or remove the app-owned macOS schedule from the saved config:
 
 ```bash
-python3 PLUGIN_ROOT/scripts/mark_automation_synced.py WORKSPACE --automation-id AUTOMATION_ID
+python3 PLUGIN_ROOT/scripts/sync_local_schedule.py WORKSPACE --provider codex
 ```
+
+11. This command uses the signed app runner and a per-user LaunchAgent. It must not create a Codex Scheduled task. If macOS denies LaunchAgent registration in the current sandbox, tell the user to open **Automation** in the app and select **Save Schedule**; that performs the same registration directly.
+12. For an upgraded workspace only, if `legacyAssistantAutomationID` names an older Codex automation, pause or delete that one automation with `automation_update` before clearing the migration warning. Never leave both schedulers active.
 
 ## Open or Diagnose the App
 
@@ -66,13 +66,13 @@ python3 PLUGIN_ROOT/scripts/mark_automation_synced.py WORKSPACE --automation-id 
 
 The automation reads search countries, opportunity types, work arrangements, role families, thresholds, and exclusions from config on every run. Those edits do not require prompt rewriting.
 
-The app's **Save Schedule & Open Codex** action saves the schedule and opens the exact synchronization request in a new Codex task. After the user presses **Send**, perform the synchronization below. Never treat the local config flag as proof that a scheduled task exists.
+The app's **Save Schedule** action writes the current prompt, installs or updates a per-user macOS LaunchAgent, and verifies that macOS loaded it. It does not open Codex. Each firing starts `codex exec` through the signed background runner and writes status and logs into the workspace.
 
 Frequency, day, time, enabled state, and automation ID changes require synchronization:
 
-1. Render a fresh spec.
-2. Update the existing automation by ID.
-3. Mark synchronized only after the tool succeeds.
+1. Run `sync_local_schedule.py WORKSPACE --provider codex`, or ask the user to select **Save Schedule** in the app.
+2. Confirm `schedulerBackend` is `local`, `needsCodexSync` is false, and the runner reports the LaunchAgent as loaded.
+3. Do not create a Codex Scheduled task as a substitute.
 
 ## Run a Search Now
 

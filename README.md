@@ -46,13 +46,13 @@ Generated application files are never removed when a posting is archived or dele
 
 ### Codex
 
-**Run Search** executes `codex exec` directly in the selected workspace with live web search enabled. The app shows a running state, a readable log, and a Stop control. Setup, evidence review, and schedule synchronization open visible Codex tasks because those operations may require user confirmation.
+**Run Search** executes `codex exec` directly in the selected workspace with live web search enabled. The app shows a running state, a readable log, and a Stop control. Setup and evidence review open visible Codex tasks because they require assistant reasoning and may require user answers.
 
-When a recurring schedule is selected, the setup or sync task creates or updates one Codex automation. The app remains in **Sync needed** until that real automation operation succeeds.
+**Save Schedule** registers a per-user macOS LaunchAgent directly. At the saved time, the signed app runner starts `codex exec`, prevents overlapping searches, and writes runtime status plus logs into the workspace. The app window may be closed; the Mac must be on and the user logged in. No Codex Scheduled task or copied prompt is required.
 
 ### Claude Code
 
-**Run Search** executes the local Claude Code CLI directly in guarded automatic mode and writes the same visible run log. Setup, evidence review, and schedule synchronization are copied into a new Claude Code task. Recurring schedules use Claude Code `/schedule` when that installation can access the selected local workspace; otherwise the app leaves the schedule unsynchronized and reports the blocker.
+**Run Search** executes the local Claude Code CLI directly in guarded automatic mode and writes the same visible run log. Setup and evidence review are copied into a Claude Code task. Recurring searches use the same app-owned macOS scheduler and signed runner, so they do not depend on Claude Code `/schedule` or a Team plan.
 
 ## Install Through Codex
 
@@ -104,6 +104,6 @@ Run the complete macOS test gate with:
 APP_ARCHITECTURES='arm64 x86_64' scripts/test_macos_app.sh
 ```
 
-It tests workspace migration, discovery-date behavior, lifecycle and dedupe rules, Codex and Claude launch arguments, universal binaries, release extraction, checksum rejection, updater replacement and rollback, signatures, and compatibility fixtures. GitHub Actions runs the same gate before a tagged release is published.
+It tests workspace migration, discovery-date behavior, lifecycle and dedupe rules, Codex and Claude launch arguments, schedule payloads, weekday and weekly cadence handling, overlap prevention, runner status and logs, universal binaries, release extraction, checksum rejection, updater replacement and rollback, signatures, and compatibility fixtures. GitHub Actions runs the same gate before a tagged release is published.
 
 The project is licensed under the MIT License.

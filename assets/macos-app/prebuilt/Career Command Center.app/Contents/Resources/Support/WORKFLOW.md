@@ -19,8 +19,8 @@ This file is the operational contract bundled with the native app. The directory
 5. If questions require user answers, stop and tell the user they are ready in the app. Do not build final master CVs or register a schedule yet.
 6. When all questions are resolved, infer role families only when the config permits it, build role-family master CVs using the CV standard, render and inspect them, and register them through `register_masters.py`.
 7. Run `state_cli.py migrate-assessments` and `doctor.py --strict`. Resolve every blocker.
-8. Run `render_automation_spec.py WORKSPACE`. If the result is active, create or update one matching scheduled task in the assistant named by the request. Use the Codex automation capability for Codex or `/schedule` for Claude Code. If paused, pause or remove the existing matching task. If the selected assistant cannot schedule a task with access to the local workspace, leave the schedule unsynchronized and report that exact blocker.
-9. Run `mark_automation_synced.py` only after the scheduled-task operation succeeds.
+8. Register or remove the app-owned macOS schedule through `SYSTEM_ROOT/scripts/sync_local_schedule.py WORKSPACE --provider PROVIDER`. This uses the signed app runner and local Codex or Claude CLI. Do not create a Codex Scheduled task or Claude `/schedule` job.
+9. If the current sandbox cannot register the LaunchAgent, leave the schedule pending and tell the user to select **Save Schedule** under Automation in the native app. For an upgraded workspace, identify any `legacyAssistantAutomationID` that must be disabled once to prevent duplicate runs.
 
 ## Review Evidence Answers
 

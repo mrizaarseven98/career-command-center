@@ -84,6 +84,10 @@ struct UpdateStageTests {
             fileManager.isExecutableFile(atPath: staged.appendingPathComponent("Contents/Helpers/CareerCommandCenterUpdater").path),
             "staged app includes its updater"
         )
+        try expect(
+            fileManager.isExecutableFile(atPath: staged.appendingPathComponent("Contents/Helpers/CareerCommandCenterRunner").path),
+            "staged app includes its background runner"
+        )
 
         MockURLProtocol.payloads[checksumURL] = Data((String(repeating: "0", count: 64) + "\n").utf8)
         do {

@@ -168,26 +168,77 @@ enum OpportunityFormatOptions {
 }
 
 enum LeadDateFormatting {
+    private final class FormatterCache: @unchecked Sendable {
+        private let lock = NSLock()
+        private let parsedDates = NSCache<NSString, NSDate>()
+        private let invalidDates = NSCache<NSString, NSNumber>()
+        private let fractional: ISO8601DateFormatter
+        private let internet: ISO8601DateFormatter
+        private let legacy: [DateFormatter]
+        private let mediumDate: DateFormatter
+        private let mediumDateTime: DateFormatter
+
+        init() {
+            parsedDates.countLimit = 4_096
+            invalidDates.countLimit = 1_024
+
+            fractional = ISO8601DateFormatter()
+            fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+            internet = ISO8601DateFormatter()
+            internet.formatOptions = [.withInternetDateTime]
+
+            legacy = ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"].map { format in
+                let formatter = DateFormatter()
+                formatter.locale = Locale(identifier: "en_US_POSIX")
+                formatter.timeZone = .current
+                formatter.dateFormat = format
+                return formatter
+            }
+
+            mediumDate = DateFormatter()
+            mediumDate.locale = .current
+            mediumDate.dateStyle = .medium
+            mediumDate.timeStyle = .none
+
+            mediumDateTime = DateFormatter()
+            mediumDateTime.locale = .current
+            mediumDateTime.dateStyle = .medium
+            mediumDateTime.timeStyle = .short
+        }
+
+        func parse(_ value: String) -> Date? {
+            let key = value as NSString
+            if let cached = parsedDates.object(forKey: key) { return cached as Date }
+            if invalidDates.object(forKey: key) != nil { return nil }
+
+            lock.lock()
+            defer { lock.unlock() }
+            if let cached = parsedDates.object(forKey: key) { return cached as Date }
+
+            let parsed = fractional.date(from: value)
+                ?? internet.date(from: value)
+                ?? legacy.lazy.compactMap { $0.date(from: value) }.first
+            if let parsed {
+                parsedDates.setObject(parsed as NSDate, forKey: key)
+            } else {
+                invalidDates.setObject(1, forKey: key)
+            }
+            return parsed
+        }
+
+        func mediumString(from date: Date, includeTime: Bool) -> String {
+            lock.lock()
+            defer { lock.unlock() }
+            return (includeTime ? mediumDateTime : mediumDate).string(from: date)
+        }
+    }
+
+    private static let cache = FormatterCache()
+
     static func parse(_ value: String) -> Date? {
         let cleaned = value.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return nil }
-
-        let fractional = ISO8601DateFormatter()
-        fractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        if let date = fractional.date(from: cleaned) { return date }
-
-        let internet = ISO8601DateFormatter()
-        internet.formatOptions = [.withInternetDateTime]
-        if let date = internet.date(from: cleaned) { return date }
-
-        for format in ["yyyy-MM-dd'T'HH:mm:ss", "yyyy-MM-dd HH:mm:ss", "yyyy-MM-dd"] {
-            let formatter = DateFormatter()
-            formatter.locale = Locale(identifier: "en_US_POSIX")
-            formatter.timeZone = .current
-            formatter.dateFormat = format
-            if let date = formatter.date(from: cleaned) { return date }
-        }
-        return nil
+        return cache.parse(cleaned)
     }
 
     static func relativeLabel(for date: Date?, now: Date = Date(), calendar: Calendar = .current) -> String {
@@ -198,20 +249,12 @@ enum LeadDateFormatting {
         let end = calendar.startOfDay(for: now)
         let days = max(0, calendar.dateComponents([.day], from: start, to: end).day ?? 0)
         if days < 31 { return "Found \(days) days ago" }
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .none
-        return "Found \(formatter.string(from: date))"
+        return "Found \(cache.mediumString(from: date, includeTime: false))"
     }
 
     static func fullLabel(for date: Date?) -> String {
         guard let date else { return "Discovery date unavailable" }
-        let formatter = DateFormatter()
-        formatter.locale = .current
-        formatter.dateStyle = .medium
-        formatter.timeStyle = .short
-        return "Found \(formatter.string(from: date))"
+        return "Found \(cache.mediumString(from: date, includeTime: true))"
     }
 }
 
@@ -514,6 +557,8 @@ struct AutomationPreferences: Codable, Equatable {
     var searchDepthMinutes: Int
     var autoCreateTierAPackages: Bool
     var automationID: String
+    var schedulerBackend: String
+    var legacyAssistantAutomationID: String
     var needsCodexSync: Bool
     var lastSyncedAt: String
 
@@ -527,7 +572,9 @@ struct AutomationPreferences: Codable, Equatable {
         minimumNewLeads: Int = 5,
         searchDepthMinutes: Int = 120,
         autoCreateTierAPackages: Bool = false,
-        automationID: String = "career-command-center-daily",
+        automationID: String = LocalScheduleService.defaultLabel,
+        schedulerBackend: String = "local",
+        legacyAssistantAutomationID: String = "",
         needsCodexSync: Bool = true,
         lastSyncedAt: String = ""
     ) {
@@ -541,6 +588,8 @@ struct AutomationPreferences: Codable, Equatable {
         self.searchDepthMinutes = searchDepthMinutes
         self.autoCreateTierAPackages = autoCreateTierAPackages
         self.automationID = automationID
+        self.schedulerBackend = schedulerBackend
+        self.legacyAssistantAutomationID = legacyAssistantAutomationID
         self.needsCodexSync = needsCodexSync
         self.lastSyncedAt = lastSyncedAt
     }
@@ -556,6 +605,8 @@ struct AutomationPreferences: Codable, Equatable {
         case searchDepthMinutes
         case autoCreateTierAPackages
         case automationID
+        case schedulerBackend
+        case legacyAssistantAutomationID
         case needsCodexSync
         case lastSyncedAt
     }
@@ -571,10 +622,41 @@ struct AutomationPreferences: Codable, Equatable {
         minimumNewLeads = try container.decodeIfPresent(Int.self, forKey: .minimumNewLeads) ?? 5
         searchDepthMinutes = try container.decodeIfPresent(Int.self, forKey: .searchDepthMinutes) ?? 120
         autoCreateTierAPackages = try container.decodeIfPresent(Bool.self, forKey: .autoCreateTierAPackages) ?? false
-        automationID = try container.decodeIfPresent(String.self, forKey: .automationID) ?? "career-command-center-daily"
+        automationID = try container.decodeIfPresent(String.self, forKey: .automationID) ?? LocalScheduleService.defaultLabel
+        schedulerBackend = try container.decodeIfPresent(String.self, forKey: .schedulerBackend)
+            ?? (automationID == LocalScheduleService.defaultLabel ? "local" : "assistant")
+        legacyAssistantAutomationID = try container.decodeIfPresent(String.self, forKey: .legacyAssistantAutomationID) ?? ""
         needsCodexSync = try container.decodeIfPresent(Bool.self, forKey: .needsCodexSync) ?? true
         lastSyncedAt = try container.decodeIfPresent(String.self, forKey: .lastSyncedAt) ?? ""
     }
+}
+
+struct ScheduledRunRuntime: Codable, Equatable {
+    var version = 1
+    var state = "idle"
+    var provider = ""
+    var startedAt = ""
+    var finishedAt = ""
+    var updatedAt = ""
+    var logPath = ""
+    var message = ""
+    var pid: Int?
+    var exitCode: Int?
+
+    enum CodingKeys: String, CodingKey {
+        case version
+        case state
+        case provider
+        case startedAt = "started_at"
+        case finishedAt = "finished_at"
+        case updatedAt = "updated_at"
+        case logPath = "log_path"
+        case message
+        case pid
+        case exitCode = "exit_code"
+    }
+
+    var isRunning: Bool { state == "running" }
 }
 
 struct EvidenceAnswers: Codable, Equatable {
@@ -881,7 +963,7 @@ struct AppConfig: Codable, Equatable {
     }
 }
 
-enum DocumentCategory: String, CaseIterable, Identifiable, Codable {
+enum DocumentCategory: String, CaseIterable, Identifiable, Codable, Sendable {
     case cvs = "CVs"
     case transcripts = "Transcripts"
     case certificates = "Certificates"
@@ -969,7 +1051,7 @@ enum AppSection: String, CaseIterable, Identifiable {
     }
 }
 
-struct DocumentItem: Identifiable, Hashable {
+struct DocumentItem: Identifiable, Hashable, Sendable {
     let url: URL
     let category: DocumentCategory
     let modifiedAt: Date

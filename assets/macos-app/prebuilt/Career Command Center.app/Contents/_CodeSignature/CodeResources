@@ -10,11 +10,11 @@
 		</data>
 		<key>Resources/Support/WORKFLOW.md</key>
 		<data>
-		AUamYLR8HYLmskmheNpX7dAuBSs=
+		7OsXX+sJ1Awv5ksAiTQSp6iEH3o=
 		</data>
 		<key>Resources/Support/references/APP_WORKFLOW.md</key>
 		<data>
-		AUamYLR8HYLmskmheNpX7dAuBSs=
+		7OsXX+sJ1Awv5ksAiTQSp6iEH3o=
 		</data>
 		<key>Resources/Support/references/AUTOMATION_PROMPT.md</key>
 		<data>
@@ -42,7 +42,7 @@
 		</data>
 		<key>Resources/Support/scripts/mark_automation_synced.py</key>
 		<data>
-		JWYudds5DhGVhDDLOJdgJXhkbBc=
+		gd1b05RReW/gD1Qbi91LeBM0P0Y=
 		</data>
 		<key>Resources/Support/scripts/question_cli.py</key>
 		<data>
@@ -60,17 +60,30 @@
 		<data>
 		dfd4YpWK/uDLJG1iNr4+Dd9/0CA=
 		</data>
+		<key>Resources/Support/scripts/sync_local_schedule.py</key>
+		<data>
+		CHI392ke12seBXUoA7BO4cTvkRs=
+		</data>
 	</dict>
 	<key>files2</key>
 	<dict>
+		<key>Helpers/CareerCommandCenterRunner</key>
+		<dict>
+			<key>cdhash</key>
+			<data>
+			wOU2xpE6cj928AZ/ZrKibKRb/IQ=
+			</data>
+			<key>requirement</key>
+			<string>cdhash H"c0e536c6913a723f76f0067f66b2a26ca45bfc84" or cdhash H"d32d35d74bdb28ec82f03640385f9f184ce3c31f"</string>
+		</dict>
 		<key>Helpers/CareerCommandCenterUpdater</key>
 		<dict>
 			<key>cdhash</key>
 			<data>
-			QpNY53p0yt002z/9AkdRBRdRCUs=
+			Dvz/FehhCtR+Z/sLdJit/VtSkTM=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"429358e77a74cadd34db3ffd024751051751094b" or cdhash H"22d6e4f9498de9a88ba0e01b52c473dc0621b621"</string>
+			<string>cdhash H"0efcff15e8610ad47e67fb0b7498adfd5b529133" or cdhash H"b2bd4842ad7a8537ce8c0af6d5db085ed42beb0a"</string>
 		</dict>
 		<key>Resources/AppIcon.icns</key>
 		<dict>
@@ -83,14 +96,14 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			bnj8ZHNQnZ6qSNaFkcPBTyIVjidmzp5GYNhJN68daLk=
+			qp23DfmZZgzdNC1IJ906Q6xJqedeQoz233LWvVmmzmA=
 			</data>
 		</dict>
 		<key>Resources/Support/references/APP_WORKFLOW.md</key>
 		<dict>
 			<key>hash2</key>
 			<data>
-			bnj8ZHNQnZ6qSNaFkcPBTyIVjidmzp5GYNhJN68daLk=
+			qp23DfmZZgzdNC1IJ906Q6xJqedeQoz233LWvVmmzmA=
 			</data>
 		</dict>
 		<key>Resources/Support/references/AUTOMATION_PROMPT.md</key>
@@ -139,7 +152,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			hc7Wj2Nyw3x1FBmjx2Ag6LRRXIS6i7GbkJ5c4IHf5M0=
+			B2NEU23+baTdfjXMOM6wTlkABXlOGOoYos+Q2ICmpLU=
 			</data>
 		</dict>
 		<key>Resources/Support/scripts/question_cli.py</key>
@@ -168,6 +181,13 @@
 			<key>hash2</key>
 			<data>
 			N6WJLSBRfN/afegJwhvhfPRxTUiHwtu12byKHIiFu1w=
+			</data>
+		</dict>
+		<key>Resources/Support/scripts/sync_local_schedule.py</key>
+		<dict>
+			<key>hash2</key>
+			<data>
+			Nzhwfts2ADQTMNSxePfN93UZZzVpCDOtxm3xgNWs0qk=
 			</data>
 		</dict>
 	</dict>

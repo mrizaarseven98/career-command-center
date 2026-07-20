@@ -1,6 +1,6 @@
 ---
-description: Synchronize Career Command Center scheduling with Claude
+description: Save the Career Command Center local Claude CLI schedule
 argument-hint: "[workspace path]"
 ---
 
-Use the `career-command-center` skill to render the saved automation specification for `$ARGUMENTS`, or the active workspace when omitted. Create or update one matching Claude Code `/schedule` job only when it can access the selected local workspace. Never create a duplicate, and mark synchronization only after the real scheduled-job operation succeeds. If local workspace access is unavailable, leave the app unsynchronized and explain the exact blocker.
+Use the `career-command-center` skill and `scripts/sync_local_schedule.py` to register or remove the app-owned macOS schedule for `$ARGUMENTS`, or the active workspace when omitted. Use provider `claude`. Do not create a Claude Code `/schedule` job. Verify that the signed runner is loaded, report the next saved cadence, and identify any older assistant-managed schedule that must be disabled to prevent duplicates.
