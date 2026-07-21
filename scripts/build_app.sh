@@ -68,6 +68,7 @@ MAIN_SOURCES=(
   "$SOURCE_ROOT/Sources/CoreModels.swift"
   "$SOURCE_ROOT/Sources/UpdateService.swift"
   "$SOURCE_ROOT/Sources/LocalScheduleService.swift"
+  "$SOURCE_ROOT/Sources/ScheduledRunner.swift"
   "$SOURCE_ROOT/Sources/AppStore.swift"
   "$SOURCE_ROOT/Sources/DesignSystem.swift"
   "$SOURCE_ROOT/Sources/OnboardingView.swift"
@@ -75,6 +76,7 @@ MAIN_SOURCES=(
   "$SOURCE_ROOT/Sources/LibraryViews.swift"
   "$SOURCE_ROOT/Sources/QuestionsView.swift"
   "$SOURCE_ROOT/Sources/CareerCommandCenterApp.swift"
+  "$SOURCE_ROOT/Sources/CareerCommandCenterEntry.swift"
 )
 
 MAIN_SLICES=()
@@ -117,6 +119,7 @@ for arch in "${ARCHES[@]}"; do
     -framework Foundation \
     "$SOURCE_ROOT/Sources/LocalScheduleService.swift" \
     "$SOURCE_ROOT/Sources/ScheduledRunner.swift" \
+    "$SOURCE_ROOT/Sources/ScheduledRunnerMain.swift" \
     -o "$runner_slice"
   [[ -x "$main_slice" && -x "$helper_slice" && -x "$runner_slice" ]] || {
     echo "Swift compilation did not produce executable $arch slices." >&2

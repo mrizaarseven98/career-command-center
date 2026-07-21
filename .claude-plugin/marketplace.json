@@ -19,7 +19,7 @@
       ],
       "commands": "./claude-commands/",
       "description": "Audit career evidence, research targeted roles, tailor CVs, and track applications in a native macOS workspace.",
-      "version": "2.1.0",
+      "version": "2.1.1",
       "author": {
         "name": "Mehmet Riza Arseven"
       },

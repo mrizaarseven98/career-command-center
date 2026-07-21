@@ -52,9 +52,9 @@ struct SnapshotApp {
             if mode.contains("update") {
                 store.softwareUpdateState = .available(
                     SoftwareUpdate(
-                        version: "4.1.0",
-                        tagName: "v4.1.0",
-                        releasePageURL: URL(string: "https://github.com/mrizaarseven98/career-command-center/releases/tag/v4.1.0")!,
+                        version: "4.1.1",
+                        tagName: "v4.1.1",
+                        releasePageURL: URL(string: "https://github.com/mrizaarseven98/career-command-center/releases/tag/v4.1.1")!,
                         archiveURL: URL(string: "https://example.com/app.zip")!,
                         checksumURL: URL(string: "https://example.com/app.zip.sha256")!,
                         notes: "Improved opportunity filtering, provider integration, and update verification.",

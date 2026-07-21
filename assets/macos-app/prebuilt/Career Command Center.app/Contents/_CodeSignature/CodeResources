@@ -62,7 +62,7 @@
 		</data>
 		<key>Resources/Support/scripts/sync_local_schedule.py</key>
 		<data>
-		CHI392ke12seBXUoA7BO4cTvkRs=
+		gtSGj+p+gdKRPkZp8EeZ7SiHdQM=
 		</data>
 	</dict>
 	<key>files2</key>
@@ -71,10 +71,10 @@
 		<dict>
 			<key>cdhash</key>
 			<data>
-			wOU2xpE6cj928AZ/ZrKibKRb/IQ=
+			G2VjISEx5Pfa2cv7K6JQTGy157Y=
 			</data>
 			<key>requirement</key>
-			<string>cdhash H"c0e536c6913a723f76f0067f66b2a26ca45bfc84" or cdhash H"d32d35d74bdb28ec82f03640385f9f184ce3c31f"</string>
+			<string>cdhash H"1b6563212131e4f7dad9cbfb2ba2504c6cb5e7b6" or cdhash H"b00c7e8438178b08861f4574621a1c9ed70cb39c"</string>
 		</dict>
 		<key>Helpers/CareerCommandCenterUpdater</key>
 		<dict>
@@ -187,7 +187,7 @@
 		<dict>
 			<key>hash2</key>
 			<data>
-			Nzhwfts2ADQTMNSxePfN93UZZzVpCDOtxm3xgNWs0qk=
+			Tx9DjlksevsAB2hIGgQoMB0qak/wiI7F/opSjUkLbso=
 			</data>
 		</dict>
 	</dict>

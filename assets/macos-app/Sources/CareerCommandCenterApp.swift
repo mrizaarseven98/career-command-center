@@ -1,7 +1,6 @@
 import AppKit
 import SwiftUI
 
-@main
 @MainActor
 struct CareerCommandCenterApp: App {
     @StateObject private var store: AppStore

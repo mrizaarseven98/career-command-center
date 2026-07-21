@@ -66,7 +66,7 @@ python3 PLUGIN_ROOT/scripts/sync_local_schedule.py WORKSPACE --provider codex
 
 The automation reads search countries, opportunity types, work arrangements, role families, thresholds, and exclusions from config on every run. Those edits do not require prompt rewriting.
 
-The app's **Save Schedule** action writes the current prompt, installs or updates a per-user macOS LaunchAgent, and verifies that macOS loaded it. It does not open Codex. Each firing starts `codex exec` through the signed background runner and writes status and logs into the workspace.
+The app's **Save Schedule** action writes the current prompt, installs or updates a per-user macOS LaunchAgent, and verifies that macOS loaded it. It does not open Codex. Each firing starts `codex exec` through the signed background runner. Scheduler control files and logs live under the user's private Application Support directory; career documents and application state remain in the chosen workspace.
 
 Frequency, day, time, enabled state, and automation ID changes require synchronization:
 

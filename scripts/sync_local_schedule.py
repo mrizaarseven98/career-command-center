@@ -27,6 +27,24 @@ def run(*args: object) -> subprocess.CompletedProcess[str]:
     )
 
 
+def workspace_key(workspace: Path) -> str:
+    value = str(workspace).encode("utf-8")
+    digest = 14_695_981_039_346_656_037
+    for byte in value:
+        digest ^= byte
+        digest = (digest * 1_099_511_628_211) & 0xFFFFFFFFFFFFFFFF
+    return f"{digest:016x}"
+
+
+def scheduler_runtime_directory(workspace: Path) -> Path:
+    home = Path(os.environ.get("CAREER_COMMAND_CENTER_LAUNCH_AGENT_HOME", Path.home()))
+    return (
+        home
+        / "Library/Application Support/Career Command Center/Scheduler"
+        / workspace_key(workspace)
+    )
+
+
 def installed_app(explicit: Path | None) -> Path:
     candidates = [
         explicit,
@@ -140,6 +158,7 @@ def main() -> int:
     automation = config.setdefault("automation", {})
     app = installed_app(args.app)
     runner = app / "Contents/Helpers/CareerCommandCenterRunner"
+    scheduled_executable = app / "Contents/MacOS/CareerCommandCenter"
     provider = selected_provider(args.provider)
 
     if not args.skip_readiness_check:
@@ -151,7 +170,7 @@ def main() -> int:
     else:
         assistant = assistant_executable(provider)
         root = workflow_root(app, workspace)
-        prompt_path = workspace / "Automation/scheduled_search_prompt.txt"
+        prompt_path = scheduler_runtime_directory(workspace) / "scheduled_search_prompt.txt"
         prompt_path.parent.mkdir(parents=True, exist_ok=True)
         prompt_path.write_text(
             f"Run the Career Command Center job and PhD search for {workspace}. "
@@ -168,6 +187,7 @@ def main() -> int:
             "--provider", provider,
             "--assistant-executable", assistant,
             "--prompt-file", prompt_path,
+            "--scheduled-executable", scheduled_executable,
             "--frequency", automation.get("frequency", "daily"),
             "--hour", int(automation.get("hour", 8)),
             "--minute", int(automation.get("minute", 0)),

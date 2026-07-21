@@ -54,6 +54,22 @@ struct LocalScheduleService {
             .appendingPathComponent("\(label).plist")
     }
 
+    func runtimeDirectory(for workspaceURL: URL) -> URL {
+        homeURL
+            .appendingPathComponent("Library/Application Support/Career Command Center/Scheduler", isDirectory: true)
+            .appendingPathComponent(Self.workspaceKey(workspaceURL), isDirectory: true)
+    }
+
+    static func workspaceKey(_ workspaceURL: URL) -> String {
+        let path = workspaceURL.standardizedFileURL.path
+        var hash: UInt64 = 14_695_981_039_346_656_037
+        for byte in path.utf8 {
+            hash ^= UInt64(byte)
+            hash &*= 1_099_511_628_211
+        }
+        return String(format: "%016llx", hash)
+    }
+
     func makeLaunchAgent(_ configuration: LocalScheduleConfiguration) throws -> [String: Any] {
         guard ["codex", "claude"].contains(configuration.provider) else {
             throw LocalScheduleError.invalidProvider
@@ -71,18 +87,21 @@ struct LocalScheduleService {
         }
 
         let intervals = try calendarIntervals(for: configuration)
-        let logs = configuration.workspaceURL.appendingPathComponent("Logs", isDirectory: true)
+        let runtime = runtimeDirectory(for: configuration.workspaceURL)
+        let logs = runtime.appendingPathComponent("Logs", isDirectory: true)
         return [
             "Label": configuration.label,
             "ProgramArguments": [
                 configuration.runnerExecutableURL.path,
+                "--scheduled-run",
                 "run",
                 "--workspace", configuration.workspaceURL.path,
                 "--provider", configuration.provider,
                 "--assistant-executable", configuration.assistantExecutableURL.path,
-                "--prompt-file", configuration.promptFileURL.path
+                "--prompt-file", configuration.promptFileURL.path,
+                "--runtime-directory", runtime.path
             ],
-            "WorkingDirectory": configuration.workspaceURL.path,
+            "WorkingDirectory": runtime.path,
             "StartCalendarInterval": intervals,
             "RunAtLoad": false,
             "ProcessType": "Standard",
@@ -94,12 +113,10 @@ struct LocalScheduleService {
     }
 
     func install(_ configuration: LocalScheduleConfiguration) throws {
+        let runtime = runtimeDirectory(for: configuration.workspaceURL)
+        try fileManager.createDirectory(at: runtime, withIntermediateDirectories: true)
         try fileManager.createDirectory(
-            at: configuration.workspaceURL.appendingPathComponent("Logs", isDirectory: true),
-            withIntermediateDirectories: true
-        )
-        try fileManager.createDirectory(
-            at: configuration.workspaceURL.appendingPathComponent("Automation", isDirectory: true),
+            at: runtime.appendingPathComponent("Logs", isDirectory: true),
             withIntermediateDirectories: true
         )
         let destination = launchAgentURL(label: configuration.label)
@@ -112,6 +129,7 @@ struct LocalScheduleService {
             options: 0
         )
 
+        try? stop(label: configuration.label)
         _ = try runLaunchctl(["bootout", serviceTarget(configuration.label)], allowFailure: true)
         try data.write(to: destination, options: .atomic)
         let result = try runLaunchctl(["bootstrap", domainTarget, destination.path])
@@ -122,6 +140,7 @@ struct LocalScheduleService {
     }
 
     func remove(label: String = Self.defaultLabel) throws {
+        try? stop(label: label)
         _ = try runLaunchctl(["bootout", serviceTarget(label)], allowFailure: true)
         let destination = launchAgentURL(label: label)
         if fileManager.fileExists(atPath: destination.path) {
@@ -130,6 +149,19 @@ struct LocalScheduleService {
     }
 
     func stop(label: String = Self.defaultLabel) throws {
+        let printed = try runLaunchctl(["print", serviceTarget(label)], allowFailure: true)
+        if let processID = serviceProcessID(from: printed.output) {
+            let descendants = descendantProcessIDs(of: processID)
+            for descendant in descendants.reversed() {
+                Darwin.kill(descendant, SIGTERM)
+            }
+            if !descendants.isEmpty {
+                usleep(300_000)
+                for descendant in descendants where processExists(descendant) {
+                    Darwin.kill(descendant, SIGKILL)
+                }
+            }
+        }
         let result = try runLaunchctl(["kill", "SIGTERM", serviceTarget(label)], allowFailure: true)
         if result.exitCode != 0,
            !result.output.localizedCaseInsensitiveContains("no such process"),
@@ -208,6 +240,39 @@ struct LocalScheduleService {
 
     private func serviceTarget(_ label: String) -> String {
         "\(domainTarget)/\(label)"
+    }
+
+    private func serviceProcessID(from output: String) -> Int32? {
+        guard let match = output.range(
+            of: #"(?m)^\s*pid\s*=\s*([0-9]+)\s*$"#,
+            options: .regularExpression
+        ) else { return nil }
+        let line = String(output[match])
+        return line.split(separator: "=").last
+            .map { $0.trimmingCharacters(in: .whitespacesAndNewlines) }
+            .flatMap(Int32.init)
+    }
+
+    private func descendantProcessIDs(of parent: Int32) -> [Int32] {
+        let pgrepURL = URL(fileURLWithPath: "/usr/bin/pgrep")
+        guard fileManager.isExecutableFile(atPath: pgrepURL.path) else { return [] }
+        let process = Process()
+        let pipe = Pipe()
+        process.executableURL = pgrepURL
+        process.arguments = ["-P", String(parent)]
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        guard (try? process.run()) != nil else { return [] }
+        process.waitUntilExit()
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        let children = String(decoding: data, as: UTF8.self)
+            .split(whereSeparator: { $0.isWhitespace })
+            .compactMap { Int32($0) }
+        return children + children.flatMap(descendantProcessIDs)
+    }
+
+    private func processExists(_ processID: Int32) -> Bool {
+        Darwin.kill(processID, 0) == 0 || errno == EPERM
     }
 
     private func runLaunchctl(

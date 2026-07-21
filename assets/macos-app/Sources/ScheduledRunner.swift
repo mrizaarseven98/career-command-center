@@ -1,11 +1,9 @@
 import Darwin
 import Foundation
 
-@main
 struct CareerCommandCenterScheduledRunner {
-    static func main() {
+    static func run(arguments: [String]) {
         do {
-            let arguments = Array(CommandLine.arguments.dropFirst())
             guard let command = arguments.first else { throw RunnerError.invalidArguments }
             switch command {
             case "run":
@@ -27,18 +25,19 @@ struct CareerCommandCenterScheduledRunner {
         let provider = try required("provider", values)
         let assistant = try requiredURL("assistant-executable", values)
         let promptFile = try requiredURL("prompt-file", values)
+        let runtimeDirectory = values["runtime-directory"].map(URL.init(fileURLWithPath:))
+            ?? workspace.appendingPathComponent("Automation", isDirectory: true)
         guard ["codex", "claude"].contains(provider),
               FileManager.default.isExecutableFile(atPath: assistant.path),
               FileManager.default.fileExists(atPath: promptFile.path) else {
             throw RunnerError.invalidArguments
         }
 
-        let automationDirectory = workspace.appendingPathComponent("Automation", isDirectory: true)
-        let logsDirectory = workspace.appendingPathComponent("Logs", isDirectory: true)
-        try FileManager.default.createDirectory(at: automationDirectory, withIntermediateDirectories: true)
+        let logsDirectory = runtimeDirectory.appendingPathComponent("Logs", isDirectory: true)
+        try FileManager.default.createDirectory(at: runtimeDirectory, withIntermediateDirectories: true)
         try FileManager.default.createDirectory(at: logsDirectory, withIntermediateDirectories: true)
 
-        let lockURL = automationDirectory.appendingPathComponent("search-run.lock")
+        let lockURL = runtimeDirectory.appendingPathComponent("search-run.lock")
         let lockDescriptor = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
         guard lockDescriptor >= 0 else { throw RunnerError.lockUnavailable }
         defer {
@@ -47,7 +46,7 @@ struct CareerCommandCenterScheduledRunner {
         }
         guard flock(lockDescriptor, LOCK_EX | LOCK_NB) == 0 else {
             try writeRuntime(
-                at: automationDirectory,
+                at: runtimeDirectory,
                 state: "skipped",
                 provider: provider,
                 logPath: "",
@@ -71,7 +70,7 @@ struct CareerCommandCenterScheduledRunner {
         try logHandle.write(contentsOf: Data("Career Command Center scheduled run\nProvider: \(provider)\nWorkspace: \(workspace.path)\n\n".utf8))
 
         try writeRuntime(
-            at: automationDirectory,
+            at: runtimeDirectory,
             state: "running",
             provider: provider,
             logPath: logURL.path,
@@ -81,23 +80,25 @@ struct CareerCommandCenterScheduledRunner {
 
         let process = Process()
         process.executableURL = assistant
-        process.currentDirectoryURL = workspace
+        process.currentDirectoryURL = runtimeDirectory
         if provider == "claude" {
             process.arguments = [
                 "--print",
                 "--permission-mode", "auto",
                 "--effort", "high",
+                "--add-dir", workspace.path,
                 "--name", "Career Command Center Scheduled Search",
                 prompt
             ]
         } else {
             process.arguments = [
                 "--search",
+                "-c", "approval_policy=\"never\"",
+                "--sandbox", "workspace-write",
+                "--add-dir", workspace.path,
+                "-C", runtimeDirectory.path,
                 "exec",
                 "--skip-git-repo-check",
-                "--sandbox", "workspace-write",
-                "--ask-for-approval", "never",
-                "-C", workspace.path,
                 prompt
             ]
         }
@@ -122,7 +123,7 @@ struct CareerCommandCenterScheduledRunner {
 
         let exitCode = process.terminationStatus
         try writeRuntime(
-            at: automationDirectory,
+            at: runtimeDirectory,
             state: exitCode == 0 ? "completed" : "failed",
             provider: provider,
             logPath: logURL.path,
@@ -149,12 +150,14 @@ struct CareerCommandCenterScheduledRunner {
             let frequency = try required("frequency", values)
             let hour = try requiredInt("hour", values)
             let minute = try requiredInt("minute", values)
+            let scheduledExecutable = values["scheduled-executable"].map(URL.init(fileURLWithPath:))
+                ?? URL(fileURLWithPath: CommandLine.arguments[0])
             let configuration = LocalScheduleConfiguration(
                 label: label,
                 workspaceURL: workspace,
                 provider: provider,
                 assistantExecutableURL: assistant,
-                runnerExecutableURL: URL(fileURLWithPath: CommandLine.arguments[0]),
+                runnerExecutableURL: scheduledExecutable,
                 promptFileURL: promptFile,
                 frequency: frequency,
                 weekdaysOnly: values["weekdays-only"] == "true",
@@ -211,7 +214,7 @@ struct CareerCommandCenterScheduledRunner {
     }
 
     private static func writeRuntime(
-        at automationDirectory: URL,
+        at runtimeDirectory: URL,
         state: String,
         provider: String,
         logPath: String,
@@ -235,7 +238,7 @@ struct CareerCommandCenterScheduledRunner {
         if let exitCode { payload["exit_code"] = Int(exitCode) }
         let data = try JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys])
         try data.write(
-            to: automationDirectory.appendingPathComponent("scheduler_runtime.json"),
+            to: runtimeDirectory.appendingPathComponent("scheduler_runtime.json"),
             options: .atomic
         )
     }

@@ -30,7 +30,8 @@ def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--app", type=Path, required=True)
     args = parser.parse_args()
-    runner = args.app / "Contents/Helpers/CareerCommandCenterRunner"
+    runner = args.app.resolve() / "Contents/Helpers/CareerCommandCenterRunner"
+    scheduled_executable = args.app.resolve() / "Contents/MacOS/CareerCommandCenter"
     if not runner.is_file() or not os.access(runner, os.X_OK):
         raise SystemExit(f"Background runner is missing at {runner}")
 
@@ -39,8 +40,10 @@ def main() -> int:
         workspace = root / "Workspace"
         automation = workspace / "Automation"
         logs = workspace / "Logs"
+        runtime_directory = root / "SchedulerRuntime"
         automation.mkdir(parents=True)
         logs.mkdir()
+        runtime_directory.mkdir()
         prompt = automation / "scheduled_search_prompt.txt"
         prompt.write_text("Run the isolated scheduler integration test.", encoding="utf-8")
 
@@ -61,20 +64,27 @@ def main() -> int:
             "--provider", "codex",
             "--assistant-executable", assistant,
             "--prompt-file", prompt,
+            "--runtime-directory", runtime_directory,
             env=environment,
         )
-        runtime = json.loads((automation / "scheduler_runtime.json").read_text(encoding="utf-8"))
+        runtime = json.loads((runtime_directory / "scheduler_runtime.json").read_text(encoding="utf-8"))
         assert runtime["state"] == "completed"
         assert runtime["exit_code"] == 0
         assert Path(runtime["log_path"]).is_file()
         captured = capture.read_text(encoding="utf-8")
-        assert "--search" in captured
-        assert "--ask-for-approval" in captured
-        assert "never" in captured
+        captured_arguments = captured.splitlines()
+        assert "--search" in captured_arguments
+        assert "--ask-for-approval" not in captured_arguments
+        assert "-c" in captured_arguments
+        assert 'approval_policy="never"' in captured_arguments
+        assert captured_arguments.index("-c") < captured_arguments.index("exec")
+        assert "--add-dir" in captured_arguments
+        assert captured_arguments[captured_arguments.index("--add-dir") + 1] == str(workspace)
+        assert captured_arguments[captured_arguments.index("-C") + 1] == str(runtime_directory)
         assert str(workspace) in captured
         assert "isolated scheduler integration test" in captured
 
-        lock_path = automation / "search-run.lock"
+        lock_path = runtime_directory / "search-run.lock"
         with lock_path.open("a+") as lock_handle:
             fcntl.flock(lock_handle, fcntl.LOCK_EX | fcntl.LOCK_NB)
             run(
@@ -84,9 +94,10 @@ def main() -> int:
                 "--provider", "codex",
                 "--assistant-executable", assistant,
                 "--prompt-file", prompt,
+                "--runtime-directory", runtime_directory,
                 env=environment,
             )
-        skipped = json.loads((automation / "scheduler_runtime.json").read_text(encoding="utf-8"))
+        skipped = json.loads((runtime_directory / "scheduler_runtime.json").read_text(encoding="utf-8"))
         assert skipped["state"] == "skipped"
 
         fake_home = root / "Home"
@@ -108,6 +119,7 @@ def main() -> int:
             "--provider", "codex",
             "--assistant-executable", assistant,
             "--prompt-file", prompt,
+            "--scheduled-executable", scheduled_executable,
             "--frequency", "daily",
             "--weekdays-only",
             "--hour", "8",
@@ -122,7 +134,16 @@ def main() -> int:
         with launch_agent.open("rb") as handle:
             payload = plistlib.load(handle)
         assert payload["Label"] == label
-        assert payload["ProgramArguments"][0] == str(runner)
+        assert payload["ProgramArguments"][0] == str(scheduled_executable)
+        assert payload["ProgramArguments"][1:3] == ["--scheduled-run", "run"]
+        runtime_index = payload["ProgramArguments"].index("--runtime-directory") + 1
+        installed_runtime = Path(payload["ProgramArguments"][runtime_index])
+        assert installed_runtime.is_relative_to(
+            fake_home / "Library/Application Support/Career Command Center/Scheduler"
+        )
+        assert payload["WorkingDirectory"] == str(installed_runtime)
+        assert payload["StandardOutPath"].startswith(str(installed_runtime))
+        assert payload["StandardErrorPath"].startswith(str(installed_runtime))
         intervals = payload["StartCalendarInterval"]
         assert [value["Weekday"] for value in intervals] == [1, 2, 3, 4, 5]
         assert all(value["Hour"] == 8 and value["Minute"] == 15 for value in intervals)

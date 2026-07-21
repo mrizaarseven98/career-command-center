@@ -48,7 +48,7 @@ Generated application files are never removed when a posting is archived or dele
 
 **Run Search** executes `codex exec` directly in the selected workspace with live web search enabled. The app shows a running state, a readable log, and a Stop control. Setup and evidence review open visible Codex tasks because they require assistant reasoning and may require user answers.
 
-**Save Schedule** registers a per-user macOS LaunchAgent directly. At the saved time, the signed app runner starts `codex exec`, prevents overlapping searches, and writes runtime status plus logs into the workspace. The app window may be closed; the Mac must be on and the user logged in. No Codex Scheduled task or copied prompt is required.
+**Save Schedule** registers a per-user macOS LaunchAgent directly. At the saved time, the signed app runner starts `codex exec` and prevents overlapping searches. Scheduler control files and logs stay in the user's private Application Support directory so macOS privacy controls do not block a workspace stored in Desktop or Documents; the app exposes the current log. The app window may be closed, but the Mac must be on and the user logged in. No Codex Scheduled task or copied prompt is required.
 
 ### Claude Code
 

@@ -126,11 +126,15 @@ final class AppStore: ObservableObject {
     }
 
     var schedulerRuntimeURL: URL {
-        workspaceURL.appendingPathComponent("Automation/scheduler_runtime.json")
+        schedulerRuntimeDirectoryURL.appendingPathComponent("scheduler_runtime.json")
     }
 
     var scheduledPromptURL: URL {
-        workspaceURL.appendingPathComponent("Automation/scheduled_search_prompt.txt")
+        schedulerRuntimeDirectoryURL.appendingPathComponent("scheduled_search_prompt.txt")
+    }
+
+    private var schedulerRuntimeDirectoryURL: URL {
+        LocalScheduleService().runtimeDirectory(for: workspaceURL)
     }
 
     var questionsURL: URL {
@@ -432,6 +436,7 @@ final class AppStore: ObservableObject {
                 config.automation.legacyAssistantAutomationID = config.automation.automationID
             }
 
+            try fileManager.createDirectory(at: schedulerRuntimeDirectoryURL, withIntermediateDirectories: true)
             try runSearchRequest().write(to: scheduledPromptURL, atomically: true, encoding: .utf8)
             let schedule = LocalScheduleConfiguration(
                 label: LocalScheduleService.defaultLabel,
@@ -905,10 +910,10 @@ final class AppStore: ObservableObject {
             executable = codexExecutableURL()
             arguments = [
                 "--search",
+                "-c", "approval_policy=\"never\"",
+                "--sandbox", "workspace-write",
                 "exec",
                 "--skip-git-repo-check",
-                "--sandbox", "workspace-write",
-                "--ask-for-approval", "never",
                 "-C", workspaceURL.path,
                 runSearchRequest()
             ]
@@ -1025,7 +1030,8 @@ final class AppStore: ObservableObject {
     }
 
     private var scheduledRunnerURL: URL {
-        Bundle.main.bundleURL.appendingPathComponent("Contents/Helpers/CareerCommandCenterRunner")
+        Bundle.main.executableURL
+            ?? Bundle.main.bundleURL.appendingPathComponent("Contents/MacOS/CareerCommandCenter")
     }
 
     private func assistantExecutableURL() -> URL? {
@@ -1033,7 +1039,8 @@ final class AppStore: ObservableObject {
     }
 
     private func acquireSearchRunLock() -> Bool {
-        let lockURL = workspaceURL.appendingPathComponent("Automation/search-run.lock")
+        try? fileManager.createDirectory(at: schedulerRuntimeDirectoryURL, withIntermediateDirectories: true)
+        let lockURL = schedulerRuntimeDirectoryURL.appendingPathComponent("search-run.lock")
         searchRunLockDescriptor = Darwin.open(lockURL.path, O_CREAT | O_RDWR, S_IRUSR | S_IWUSR)
         guard searchRunLockDescriptor >= 0 else { return false }
         guard flock(searchRunLockDescriptor, LOCK_EX | LOCK_NB) == 0 else {

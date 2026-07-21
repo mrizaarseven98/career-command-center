@@ -7,7 +7,11 @@ struct CoreTests {
         let fileManager = FileManager.default
         let root = fileManager.temporaryDirectory
             .appendingPathComponent("career-command-center-tests-\(UUID().uuidString)", isDirectory: true)
-        defer { try? fileManager.removeItem(at: root) }
+        setenv("CAREER_COMMAND_CENTER_LAUNCH_AGENT_HOME", root.path, 1)
+        defer {
+            unsetenv("CAREER_COMMAND_CENTER_LAUNCH_AGENT_HOME")
+            try? fileManager.removeItem(at: root)
+        }
 
         let stateDirectory = root.appendingPathComponent("State", isDirectory: true)
         try fileManager.createDirectory(at: stateDirectory, withIntermediateDirectories: true)
